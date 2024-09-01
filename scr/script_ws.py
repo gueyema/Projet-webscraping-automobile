@@ -2,8 +2,9 @@ import csv
 import logging
 import asyncio
 from asyncio import Semaphore
+
 import random
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import List, Dict
 from tqdm import tqdm
 import aiofiles
@@ -26,6 +27,40 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 
+def process_marital_status_and_spouse_info(row: Dict[str, str]) -> Dict[str, str]:
+    """
+    Processes marital status and adds spouse-related information if applicable.
+    """
+    marital_statuses_with_spouse = ["Marié(e)", "Concubin(e) / vie maritale", "Pacsé(e)"]
+
+    if row.get('PrimaryApplicantMaritalStatus') in marital_statuses_with_spouse:
+        # Generate spouse birth date (as before)
+        primary_birth_date = datetime.strptime(row['PrimaryApplicantBirthDate'], '%d/%m/%Y')
+        age_difference = random.randint(-1 * 365, 1 * 365)
+        spouse_birth_date = primary_birth_date + timedelta(days=age_difference)
+
+        today = datetime.now()
+        min_birth_date = today - timedelta(days=18 * 365)
+        if spouse_birth_date > min_birth_date:
+            spouse_birth_date = min_birth_date - timedelta(days=random.randint(0, 365))
+
+        row['ConjointNonSouscripteurBirthDate'] = spouse_birth_date.strftime('%d/%m/%Y')
+
+        # Add ConjointNonSouscripteurHasDriveLicense
+        row['ConjointNonSouscripteurHasDriveLicense'] = random.choice(['Oui', 'Non'])
+
+        # Add ConjointNonSouscripteurDriveLicenseDate if applicable
+        if row['ConjointNonSouscripteurHasDriveLicense'] == 'Oui':
+            # Generate a random date between spouse's 18th birthday and today
+            min_license_date = spouse_birth_date + timedelta(days=18 * 365)
+            max_license_date = min(today, spouse_birth_date + timedelta(days=60 * 365))  # Max 60 years after birth
+
+            license_date = min_license_date + timedelta(
+                days=random.randint(0, (max_license_date - min_license_date).days))
+            row['ConjointNonSouscripteurDriveLicenseDate'] = license_date.strftime('%m/%Y')
+
+    return row
+
 def read_csv_profiles() -> List[Dict[str, str]]:
     encodings = ['ISO-8859-1', 'cp1252', 'latin1']
 
@@ -35,8 +70,12 @@ def read_csv_profiles() -> List[Dict[str, str]]:
                 reader = csv.DictReader(csvfile, delimiter=',')
                 profiles = []
                 for row in list(reader)[START_LINE - 1:END_LINE]:
-
-                    profiles.append(row)
+                    row['CarSelectMode'] = '2'
+                    current_datetime = datetime.now()
+                    row['DateScraping'] = current_datetime.strftime("%d/%m/%Y")
+                    processed_row = process_marital_status_and_spouse_info(row)
+                    profiles.append(processed_row)
+                    #profiles.append(row)
 
             logger.info(f"Fichier CSV lu avec succès. Encodage : {encoding}")
             logger.info(f"Nombre de profils lus : {len(profiles)}")
@@ -318,115 +357,215 @@ async def fill_form_profil(page, profile):
             # await page.screenshot(path="error_license_suspension_status.png")
             raise ValueError(f"Erreur lors de la sélection du statut de suspension du permis : {str(e)}")
 
-        try:
-            valid_marital_statuses = ["Marié(e)", "Concubin(e) / vie maritale", "Pacsé(e)"]
-            if profile.get('PrimaryApplicantMaritalStatus') in valid_marital_statuses:
-                logging.info(f"Le statut marital '{profile.get('PrimaryApplicantMaritalStatus')}' nécessite de remplir l'information sur le permis du conjoint.")
+        """ Votre conjoint ou concubin """
+        valid_marital_statuses = ["Marié(e)", "Concubin(e) / vie maritale", "Pacsé(e)"]
+        if profile.get('PrimaryApplicantMaritalStatus') in valid_marital_statuses:
+            logging.info(f"Le statut marital '{profile.get('PrimaryApplicantMaritalStatus')}' nécessite de remplir l'information sur le permis du conjoint.")
+            try:
                 await page.wait_for_selector("#ConjointNonSouscripteurBirthDate", state="visible", timeout=60000)
                 await page.evaluate('document.getElementById("ConjointNonSouscripteurBirthDate").value = ""')
                 await page.fill("#ConjointNonSouscripteurBirthDate", profile['ConjointNonSouscripteurBirthDate'])
                 await page.press("#ConjointNonSouscripteurBirthDate", "Enter")
                 await page.wait_for_timeout(500)
                 print(f"----> Date de naissance '{profile['ConjointNonSouscripteurBirthDate']}' saisie avec succès.")
+            except Exception as e:
+                logging.error(f"Erreur lors de la saisie de la date de naissance: {str(e)}")
+                # await page.screenshot(path="error_birth_date.png")
+                raise ValueError(f"Erreur lors de la saisie de la date de naissance : {str(e)}")
 
+            try:
+                await page.wait_for_selector('.ConjointNonSouscripteurHasDriveLicense', state='visible', timeout=TIMEOUT)
+                if profile['ConjointNonSouscripteurHasDriveLicense'] == "Non":
+                    await page.click('.ConjointNonSouscripteurHasDriveLicense button.list-group-item[value="False"]')
+                    print(f"----> La valeur '{profile['ConjointNonSouscripteurHasDriveLicense']}' a été choisie pour le conjoint avec un permis.")
+                elif profile['ConjointNonSouscripteurHasDriveLicense'] == "Oui":
+                    await page.click('.ConjointNonSouscripteurHasDriveLicense button.list-group-item[value="True"]')
+                    print(f"----> La valeur '{profile['ConjointNonSouscripteurHasDriveLicense']}' a été choisie pour le conjoint avec un permis.")
+                    await page.wait_for_selector("#ConjointNonSouscripteurDriveLicenseDate", state="visible",
+                                                 timeout=60000)
+                    await page.evaluate('document.getElementById("ConjointNonSouscripteurDriveLicenseDate").value = ""')
+                    await page.fill("#ConjointNonSouscripteurDriveLicenseDate", profile['ConjointNonSouscripteurDriveLicenseDate'])
+                    await page.press("#ConjointNonSouscripteurDriveLicenseDate", "Enter")
+                    await page.wait_for_timeout(500)  # Attendre que le calendrier se ferme
+                    print(f"Date d'obtention du permis du conjoint '{profile['ConjointNonSouscripteurDriveLicenseDate']}' saisie avec succès.")
+                else:
+                    print('Valeur non reconnu pour le permis du conjoint ou concubin')
+            except Exception as e:
+                print(f"Une erreur soulevé sur les informations du conjoint : {str(e)}")
+        else:
+            print(f"Le statut marital '{profile.get('PrimaryApplicantMaritalStatus')}' ne nécessite pas de remplir l'information sur le permis du conjoint.")
 
+        """ Vos enfants """
+        try:
+            await page.wait_for_selector('.HasChild', state='visible', timeout=TIMEOUT)
+            if profile['HasChild'] == "Oui":
+                await page.click('.HasChild button.list-group-item[value="True"]')
+                await page.select_option('#ChildBirthDateYear1', value=profile['ChildBirthDateYear1'])
+                print(
+                    f"Année de l'enfant 1 '{profile['ChildBirthDateYear1']}' saisie avec succès.")
+                await page.select_option('#ChildBirthDateYear2', value=profile['ChildBirthDateYear2'])
+                print(
+                    f"Année de l'enfant 2'{profile['ChildBirthDateYear2']}' saisie avec succès.")
+                await page.select_option('#ChildBirthDateYear3', value=profile['ChildBirthDateYear3'])
+                print(
+                    f"Année de l'enfant 3 '{profile['ChildBirthDateYear3']}' saisie avec succès.")
+            elif profile['HasChild'] == "Non":
+                await page.click('.HasChild button.list-group-item[value="False"]')
+            else:
+                print("Valeur non connue pour les enfants")
 
+        except Exception as e:
+            print(f"Une erreur soulevé sur les informations des années de naissance des enfants : {str(e)}")
+
+        await asyncio.sleep(2)
+        await page.get_by_role("button", name="SUIVANT ").click()
+        print("Navigation vers la page suivante : Votre profil.")
     except Exception as e:
         print(f"Une erreur s'est produite lors du remplissage du formulaire PROFIL : {str(e)}")
 
-""" Fonction sur les informations pour les conjoints des profils """
+""" Pour le remplissage des informations sur les véhicules """
 
+async def fill_form_vehicule(page, profile):
+    """
 
-async def handle_conjoint_drive_license(page, profile):
-    # Vérifier si le champ doit être rempli (basé sur le statut marital)
-    valid_marital_statuses = ["Marié(e)", "Concubin(e) / vie maritale", "Pacsé(e)"]
-    if profile.get('PrimaryApplicantMaritalStatus') not in valid_marital_statuses:
-        logging.info(
-            f"Le statut marital '{profile.get('PrimaryApplicantMaritalStatus')}' ne nécessite pas de remplir l'information sur le permis du conjoint.")
-        return
-
+    :param page:
+    :param profile:
+    :return:
+    """
     try:
-        await page.wait_for_selector("#ConjointNonSouscripteurBirthDate", state="visible", timeout=60000)
-        await page.evaluate('document.getElementById("ConjointNonSouscripteurBirthDate").value = ""')
-        await page.fill("#ConjointNonSouscripteurBirthDate", profile['ConjointNonSouscripteurBirthDate'])
-        await page.press("#ConjointNonSouscripteurBirthDate", "Enter")
-        await page.wait_for_timeout(500)
-        print(f"----> Date de naissance '{profile['ConjointNonSouscripteurBirthDate']}' saisie avec succès.")
-    except Exception as e:
-        logging.error(f"Erreur lors de la saisie de la date de naissance: {str(e)}")
-        # await page.screenshot(path="error_birth_date.png")
-        raise ValueError(f"Erreur lors de la saisie de la date de naissance : {str(e)}")
-
-    try:
-        is_visible = await page.is_visible(".ConjointNonSouscripteurHasDriveLicense")
-        if not is_visible:
-            logging.info("Le champ pour le permis du conjoint n'est pas visible. Passage à l'étape suivante.")
-            return
-        has_license = profile.get('ConjointNonSouscripteurHasDriveLicense')
-        if has_license is None:
-            logging.warning("L'information sur le permis du conjoint n'est pas spécifiée dans le profil.")
-            return
-        has_license = has_license.strip()
-        if has_license == "Oui":
-            await page.click('.ConjointNonSouscripteurHasDriveLicense button.list-group-item[value="True"]')
-            license_date = profile.get('ConjointNonSouscripteurDriveLicenseDate')
-            if license_date:
-
-                await page.wait_for_selector("#ConjointNonSouscripteurDriveLicenseDate", state="visible", timeout=60000)
-                await page.evaluate('document.getElementById("ConjointNonSouscripteurDriveLicenseDate").value = ""')
-                await page.fill("#ConjointNonSouscripteurDriveLicenseDate", license_date)
-                await page.press("#ConjointNonSouscripteurDriveLicenseDate", "Enter")
-                await page.wait_for_timeout(500)  # Attendre que le calendrier se ferme
-                logging.info(f"Date d'obtention du permis du conjoint '{license_date}' saisie avec succès.")
-            else:
-                logging.warning("La date d'obtention du permis du conjoint n'est pas spécifiée dans le profil.")
-        elif has_license == "Non":
-            await page.click('.ConjointNonSouscripteurHasDriveLicense button.list-group-item[value="False"]')
+        await page.wait_for_selector('div.form-group.has-feedback.CarSelectMode', state='visible', timeout=6000)
+        if profile['CarSelectMode'] == "1":
+            selectmode = await page.wait_for_selector('div.list-group > button.list-group-item[value="1"]')
+            await selectmode.click()
+            print(
+                f"----> L'option avec la valeur '\033[34m{profile['CarSelectMode']}\033[0m' a été sélectionnée avec succès pour la question : la selection de Modéle / Marque. ")
+        elif profile['CarSelectMode'] == "2":
+            selectmode = await page.wait_for_selector('div.list-group > button.list-group-item[value="2"]')
+            await selectmode.click()
+            print(
+                f"----> L'option avec la valeur '\033[34m{profile['CarSelectMode']}\033[0m' a été sélectionnée avec succès pour la question : la selection de Modéle / Marque. ")
         else:
-            raise ValueError(f"Valeur non reconnue pour le permis du conjoint : {has_license}")
-        logging.info(f"Option '{has_license}' sélectionnée pour le permis du conjoint.")
+            raise ValueError("Erreur sur la valeur prise par CarSelectMode")
+    except PlaywrightTimeoutError:
+        print("Le bouton '.CarSelectMode' n'est pas visible.")
     except Exception as e:
-        logging.error(f"Erreur lors du traitement des informations sur le permis du conjoint: {str(e)}")
-        # await page.screenshot(path="error_conjoint_drive_license.png")
-        raise ValueError(f"Erreur lors du traitement des informations sur le permis du conjoint : {str(e)}")
+        raise ValueError(f"Erreur d'exception sur les informations de la selection de Modéle / Marque : {str(e)}")
 
-
-""" Fonction pour les enfants des profils """
-
-
-async def handle_children_info(page, profile):
+    """ Date d'achat prévue de la voiture """
     try:
-        is_visible = await page.is_visible("label[for='HasChild']")
-        if not is_visible:
-            logging.info("Le champ pour les enfants à charge n'est pas visible. Passage à l'étape suivante.")
-            return
-        has_children = profile.get('HasChild')
-        if has_children is None:
-            logging.warning("L'information sur les enfants à charge n'est pas spécifiée dans le profil.")
-            return
-        has_children = has_children.strip()
-        if has_children == "Oui":
-            await page.click('.HasChild button.list-group-item[value="True"]')
-            for i in range(1, 4):  # Pour les enfants 1 à 3
-                child_birth_year = profile.get(f'ChildBirthYear{i}')
-                if child_birth_year:
-                    selector = f'#ChildBirthYear{i}'
-                    await page.select_option(selector, value=str(child_birth_year))
-                    print(f"Année de naissance de l'enfant {i} sélectionnée : {child_birth_year}")
-                else:
-                    logging.info(f"Pas d'information pour l'année de naissance de l'enfant {i}")
-                    break  # Arrêter si pas plus d'enfants
-        elif has_children == "Non":
-            await page.click('.HasChild button.list-group-item[value="False"]')
-        else:
-            raise ValueError(f"Valeur non reconnue pour les enfants à charge : {has_children}")
-        print(f"Option '{has_children}' sélectionnée pour les enfants à charge.")
+        await page.wait_for_selector('#PurchaseDatePrev', state='visible', timeout=6000)
+        await page.get_by_label("Date d'achat prévue du vé").click()
+        await page.get_by_role("cell", name="Aujourd'hui").click()
+        print(
+            f"----> L'option avec la valeur Aujourd'hui a été sélectionnée avec succès pour la question : La date d'achat.")
+    except PlaywrightTimeoutError:
+        print("Le bouton '.PurchaseDatePrev' n'est pas visible.")
     except Exception as e:
-        logging.error(f"Erreur lors du traitement des informations sur les enfants: {str(e)}")
-        # await page.screenshot(path="error_children_info.png")
-        raise ValueError(f"Erreur lors du traitement des informations sur les enfants : {str(e)}")
+        raise ValueError(f"Erreur d'exception sur les informations de la date d'achat prévue : {str(e)}")
 
+    """ Date d'achat de la voiture """
+    try:
+        await page.wait_for_selector('#PurchaseDate', state='visible', timeout=6000)
+        select_PurchaseDate = profile['PurchaseDate']
+        await page.type('#PurchaseDate', select_PurchaseDate, strict=True)
+        await page.get_by_label("Date d'achat :").click()
+        print(
+            f"----> L'option avec la valeur '\033[34m{select_PurchaseDate}\033[0m' a été sélectionnée avec succès pour la question : Date d'achat du véhicule. ")
+    except PlaywrightTimeoutError:
+        print("Le bouton '.PurchaseDate' n'est pas visible.")
+    except Exception as e:
+        raise ValueError(f"Erreur d'exception sur les informations de la date d'achat : {str(e)}")
 
+    """ Date de mise en circulation """
+    try:
+        await page.wait_for_selector('#FirstCarDrivingDate', state='visible', timeout=6000)
+        await page.type("#FirstCarDrivingDate", profile['FirstCarDrivingDate_2'], strict=True)
+        await page.get_by_label("Date de 1ère mise en").click()
+        await page.get_by_label("Date de 1ère mise en").press("Enter")
+        print(
+            f"----> L'option avec la valeur '\033[34m{profile['FirstCarDrivingDate_2']}\033[0m' a été sélectionnée avec succès pour la question : Date de mise en circulation du véhicule. ")
+    except PlaywrightTimeoutError:
+        print("Le bouton '.FirstCarDrivingDate' n'est pas visible.")
+    except Exception as e:
+        raise ValueError(
+            f"Erreur d'exception sur les informations de la date de mise en circulation du véhicule : {str(e)}")
+
+    """ Marque de la voiture """
+    try:
+        await page.wait_for_selector("#SpecCarMakeName", state="visible", timeout=TIMEOUT)
+        await page.select_option("#SpecCarMakeName", label=profile['SpecCarMakeName'])
+        print(f"----> Marque de la voiture '{profile['SpecCarMakeName']}' sélectionné avec succès.")
+    except PlaywrightTimeoutError:
+        print("Le bouton '.SpecCarMakeName' n'est pas visible.")
+    except Exception as e:
+        logging.error(f"Erreur lors de la sélection de la marque de voiture: {str(e)}")
+        raise ValueError(f"Erreur lors de la sélection de la marque de voiture : {str(e)}")
+
+    """ Modéle de la marque de voiture """
+    await asyncio.sleep(2)
+    try:
+        await page.wait_for_selector("#SpecCarType", state="visible", timeout=2 * 60000)
+        element_SpecCarType = await page.query_selector("#SpecCarType")
+        await element_SpecCarType.wait_for_element_state("enabled", timeout=6000)
+        await page.select_option("#SpecCarType", label=profile['SpecCarType'], timeout=6000)
+        print(f"----> Modéle de la voiture '{profile['SpecCarType']}' sélectionné avec succès.")
+    except PlaywrightTimeoutError:
+        print("Le bouton '.SpecCarType' n'est pas visible.")
+    except Exception as e:
+        logging.error(f"Erreur lors de la sélection du modéle de voiture: {str(e)}")
+        raise ValueError(f"Erreur lors de la sélection du modéle de voiture : {str(e)}")
+
+    """ Type d'alimentation de la voiture """
+    await asyncio.sleep(3)
+    try:
+        await page.wait_for_selector("#SpecCarFuelType", state="visible", timeout=TIMEOUT)
+        element_SpecCarFuelType = await page.query_selector("#SpecCarFuelType")
+        await element_SpecCarFuelType.wait_for_element_state("enabled", timeout=60000)
+        await page.select_option("#SpecCarFuelType", value=profile['SpecCarFuelType'], timeout=6000)
+        print(f"----> Alimentation de la voiture '{profile['SpecCarFuelType']}' sélectionné avec succès.")
+    except PlaywrightTimeoutError:
+        print("Le bouton '.SpecCarFuelType' n'est pas visible.")
+    except Exception as e:
+        logging.error(f"Erreur lors de la sélection de Alimentation de voiture: {str(e)}")
+        raise ValueError(f"Erreur lors de la sélection de Alimentation de voiture : {str(e)}")
+
+    """ Type de carrosserie de la voiture """
+    await asyncio.sleep(3)
+    try:
+        await page.wait_for_selector("#SpecCarBodyType", state="visible", timeout=TIMEOUT)
+        element_SpecCarBodyType = await page.query_selector("#SpecCarBodyType")
+        await element_SpecCarBodyType.wait_for_element_state("enabled", timeout=60000)
+        await page.select_option("#SpecCarBodyType", value=profile['SpecCarBodyType'], timeout=6000)
+        print(f"----> Carosserie de la voiture '{profile['SpecCarBodyType']}' sélectionnée avec succès.")
+    except PlaywrightTimeoutError:
+        print(f"Le sélecteur SpecCarBodyType n'est pas devenu visible dans le délai imparti.")
+    except Exception as e:
+        logging.error(f"Erreur lors de la sélection de la carrosserie de la voiture: {str(e)}")
+        raise ValueError(f"Erreur lors de la sélection de la carrosserie de voiture : {str(e)}")
+
+    """ Puissance de la voiture """
+    await asyncio.sleep(2)
+    try:
+        await page.wait_for_selector("#SpecCarPower", state="visible", timeout=TIMEOUT)
+        await page.select_option("#SpecCarPower", value=profile['SpecCarPower'], strict=True)
+        print(f"----> Puissance de la voiture '{profile['SpecCarPower']}' sélectionnée avec succès.")
+    except PlaywrightTimeoutError:
+        print(f"Le sélecteur #SpecCarPower n'est pas visible.")
+    except Exception as e:
+        logging.error(f"Erreur lors de la sélection de la puissance de la voiture: {str(e)}")
+        raise ValueError(f"Erreur lors de la sélection de la puissance de voiture : {str(e)}")
+
+    """ ID de la voiture """
+    try:
+        await page.wait_for_selector('.modal-content', state='visible', timeout=60000)
+        select_vehicule = profile['code_vehicule_apsad']
+        await page.click(f'#{select_vehicule}')
+        print(
+            f"----> L'option avec la valeur '\033[34m{select_vehicule}\033[0m' a été sélectionnée avec succès pour la question : ID du véhicule ")
+    except PlaywrightTimeoutError:
+        print("Le div '.modal-content' n'est pas visible.")
+    except Exception as e:
+        raise ValueError(f"Erreur d'exception sur les informations de l'ID du véhicule : {str(e)}")
 
 
 
@@ -467,6 +606,9 @@ async def run_for_profile(playwright: Playwright, profile: dict, headless: bool,
         logger.info("=" * 100)
         await fill_form_profil(page, profile)
         logger.info("=" * 100)
+        await fill_form_vehicule(page, profile)
+        logger.info("=" * 100)
+
 
     except Exception as e:
         logger.error(f"Erreur lors de l'exécution du profil: {str(e)}")
