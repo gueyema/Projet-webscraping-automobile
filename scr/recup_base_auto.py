@@ -119,7 +119,8 @@ async def main():
 
             for car_make_option in car_make_options:
                 car_make_value = await car_make_option.get_attribute("value")
-                if car_make_value:
+                marque = ["LEXUS", "MAZDA", "SKODA", "VOLKSWAGEN", "VOLVO"]
+                if car_make_value in marque:
                     try:
                         await select_car_make.select_option(value=str(car_make_value), timeout=60000)
                         print(f"La marque {car_make_value} a été choisie pour l'année ")
