@@ -14,9 +14,9 @@ from os import environ
 from playwright.async_api import async_playwright, Playwright, expect, TimeoutError as PlaywrightTimeoutError
 
 # Les paramètres pour la lecture des profils dans le fichier de données
-CSV_FILE = "C:/Users/magueye.gueye/PycharmProjects/Webscraping_AUTO/data/df_profils_v1.csv"
-START_LINE = 11
-END_LINE = 103
+CSV_FILE = "C:/Users/User/Documents/GitHub/Projet-webscraping-automobile/data/df_profils_v1.csv"
+START_LINE = 101
+END_LINE = 200
 
 
 TIMEOUT = 2 * 60000
@@ -101,6 +101,7 @@ def read_csv_profiles() -> List[Dict[str, str]]:
                 profiles = []
                 for row in list(reader)[START_LINE - 1:END_LINE]:
                     row['CarSelectMode'] = '2'
+                    row['FreqCarUse'] = '1'
                     row['ContractAnniverMth'] = row['ContractAnniverMth'].zfill(2)
                     row['Phone'] = row['Phone'].zfill(10)
                     row['JobParkZipCode'] = row['JobParkZipCode'].zfill(5)
@@ -1202,7 +1203,7 @@ async def recup_tarifs(page, profile):
         print('Navigated! Scraping page content...')
         print(
             f"'\033[34m ============== ACCÉDEZ À VOS DEVIS pour le profil avec l'identifiant {profile['Id']}....\033[0m")
-        await page.wait_for_load_state('networkidle', timeout=60000)
+        await page.wait_for_load_state('load', timeout=60000)
         # Attendre que le formulaire et les offres soient visibles
         await page.wait_for_selector('.al_form .al_content .container-fluid', state='visible', timeout=5 * 60000)
 
@@ -1269,7 +1270,7 @@ async def recup_tarifs(page, profile):
                 'ModeFinancement': profile['PurchaseMode'],
                 'Usage': profile['CarUsageCode'],
                 'KmParcours': profile['AvgKmNumber'],
-                'FreqUsage': profile['FreqCarUse'],
+
                 'CP_Stationnement': profile['HomeParkZipCode'],
                 'Ville_Stationnement': profile['HomeParkInseeCode'],
                 'ResidenceType': profile['HomeType'],
@@ -1281,9 +1282,9 @@ async def recup_tarifs(page, profile):
                 'Type_Parking': profile['ParkingCode'],
                 'TypeAssure': profile['PrimaryApplicantHasBeenInsured'],
                 'NbreAnneeAssure': profile['PrimaryApplicantInsuranceYearNb'],
-                'NbreAnneeAssureConducteurSecon': profile['SecondaryApplicantInsuranceYearNb'],
+
                 'Bonus': profile['PrimaryApplicantBonusCoeff'],
-                'BonusConducteurSecon': profile['SecondaryApplicantBonusCoeff'],
+
                 'NbreAnneePossessionVeh': profile['CarOwningTime'],
                 'CtrActuel': profile['CurrentGuaranteeCode'],
                 'AssureurActuel': profile['CurrentCarrier'],
@@ -1302,7 +1303,7 @@ async def recup_tarifs(page, profile):
         else:
 
             date_du_jour = datetime.now().strftime("%d_%m_%y")
-            nom_fichier_sans_tarif = f"fichiers_profils_sans_tarifs_{date_du_jour}.json"
+            nom_fichier_sans_tarif = f"fichiers_profils_sans_{date_du_jour}.json"
             # Écrire les informations du profil dans le fichier JSON des échecs
             async with aiofiles.open(nom_fichier_sans_tarif, mode='a') as f:
                 await f.write(json.dumps({'ID': profile['Id']}))
@@ -1317,7 +1318,7 @@ async def recup_tarifs(page, profile):
 
 async def get_random_browser(playwright: Playwright, bright_data: bool, headless: bool):
     browser_choice = random.choice(['chromium', 'firefox'])
-    slow_mo = random.randint(500, 2000)
+    slow_mo = random.randint(500, 800)
     viewport = {
       "width": random.randint(1024, 1920),
       "height": random.randint(768, 1080)
@@ -1331,7 +1332,7 @@ async def get_random_browser(playwright: Playwright, bright_data: bool, headless
     }
 
     if bright_data:
-        browser = await getattr(playwright, browser_choice).connect_over_cdp(SBR_WS_CDP, **launch_options)
+        browser = await playwright.chromium.connect_over_cdp(SBR_WS_CDP)
     else:
         browser = await getattr(playwright, browser_choice).launch(**launch_options)
 
@@ -1387,23 +1388,23 @@ async def run_for_profile(playwright: Playwright, profile: dict, headless: bool,
         print(f"Le profil '{profile['Id']}' est lancé....")
 
         await fill_form_projet(page, profile)
-        await simulate_human_behavior(page)
+        #await simulate_human_behavior(page)
         await page.wait_for_load_state("networkidle")
         logger.info("=" * 100)
         await fill_form_profil(page, profile)
-        await simulate_human_behavior(page)
+        #await simulate_human_behavior(page)
         await page.wait_for_load_state("networkidle")
         logger.info("=" * 100)
         await fill_form_vehicule(page, profile)
-        await simulate_human_behavior(page)
+        #await simulate_human_behavior(page)
         await page.wait_for_load_state("networkidle")
         logger.info("=" * 100)
         await fill_antecedents(page, profile)
-        await simulate_human_behavior(page)
+        #await simulate_human_behavior(page)
         await page.wait_for_load_state("networkidle")
         logger.info("=" * 100)
         await fill_form_contrats(page, profile)
-        await simulate_human_behavior(page)
+        #await simulate_human_behavior(page)
         logger.info("=" * 100)
         await recup_tarifs(page, profile)
 
@@ -1433,7 +1434,7 @@ async def run_for_profile(playwright: Playwright, profile: dict, headless: bool,
 
 
 
-async def main(headless: bool, bright_data: bool, max_concurrent: int = 1):
+async def main(headless: bool, bright_data: bool, max_concurrent: int = 10):
     profiles = read_csv_profiles()
     if not profiles:
         logger.error("Aucun profil n'a été lu. Fin du programme.")
@@ -1469,4 +1470,4 @@ async def run_for_profile_with_semaphore_and_progress(playwright, profile, headl
 
 
 if __name__ == "__main__":
-    asyncio.run(main(headless=False, bright_data=False, max_concurrent=1))
+    asyncio.run(main(headless=False, bright_data=True, max_concurrent=10))
