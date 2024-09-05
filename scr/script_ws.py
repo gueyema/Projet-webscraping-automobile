@@ -76,6 +76,8 @@ def process_marital_status_and_spouse_info(row: Dict[str, str]) -> Dict[str, str
         # Add ConjointNonSouscripteurHasDriveLicense
         row['ConjointNonSouscripteurHasDriveLicense'] = random.choice(['Oui', 'Non'])
 
+
+
         # Add ConjointNonSouscripteurDriveLicenseDate if applicable
         if row['ConjointNonSouscripteurHasDriveLicense'] == 'Oui':
             # Generate a random date between spouse's 18th birthday and today
@@ -98,6 +100,12 @@ def read_csv_profiles() -> List[Dict[str, str]]:
                 profiles = []
                 for row in list(reader)[START_LINE - 1:END_LINE]:
                     row['CarSelectMode'] = '2'
+                    row['ContractAnniverMth'] = row['ContractAnniverMth'].zfill(2)
+                    row['Phone'] = row['Phone'].zfill(10)
+                    row['JobParkZipCode'] = row['JobParkZipCode'].zfill(5)
+                    row['JobParkInseeCode'] = row['JobParkInseeCode'].zfill(5)
+                    row['HomeParkZipCode'] = row['HomeParkZipCode'].zfill(5)
+                    row['HomeParkInseeCode'] = row['HomeParkInseeCode'].zfill(5)
                     current_datetime = datetime.now()
                     row['DateScraping'] = current_datetime.strftime("%d/%m/%Y")
                     processed_row = process_marital_status_and_spouse_info(row)
@@ -922,7 +930,6 @@ async def fill_antecedents(page, profile):
             except Exception as e:
                 raise ValueError(
                     f"Erreur d'exception sur le click du bouton suivant : {str(e)}")
-
         else:
             print(f"Le titre trouvé est '{title_text}', ce qui ne correspond pas à 'Vos antécédents'.")
 
@@ -932,18 +939,251 @@ async def fill_antecedents(page, profile):
         raise ValueError(
             f"Erreur d'exception sur l'affichage de la page des antécédents: {str(e)}")
 
+async def fill_form_contrats(page, profile):
+    try:
+        await page.wait_for_selector('.al_label span', state='visible', timeout=60000)
+        title_text = await page.locator('.al_label span').text_content()
+        if title_text.strip() == "Votre contrat":
+            try:
+                await page.wait_for_selector('#PrimaryApplicantHomeAddressType', state='visible', timeout=6000)
+                await page.select_option('#PrimaryApplicantHomeAddressType',
+                                         value=profile['PrimaryApplicantHomeAddressType'])
+                print(
+                    f"----> L'option avec la valeur '\033[34m{profile['PrimaryApplicantHomeAddressType']}\033[0m' a été sélectionnée avec succès pour la question : Où résidez-vous ?.")
+            except PlaywrightTimeoutError:
+                print("Le bouton '.PrimaryApplicantHomeAddressType' n'est pas visible.")
+            except Exception as e:
+                raise ValueError(f"Erreur d'exception sur les informations du contrat de l'assuré : {str(e)}")
 
+            """ Depuis combien d'années possédez-vous votre véhicule ? """
+            try:
+                await page.wait_for_selector('#CarOwningTime', state='visible', timeout=6000)
+                await page.select_option('#CarOwningTime', value=profile['CarOwningTime'])
+                print(
+                    f"----> L'option avec la valeur '\033[34m{profile['CarOwningTime']}\033[0m' a été sélectionnée avec succès pour la question : Depuis combien d'années possédez-vous votre véhicule ?. ")
+            except PlaywrightTimeoutError:
+                print("Le bouton '.CarOwningTime' n'est pas visible.")
+            except Exception as e:
+                raise ValueError(f"Erreur d'exception sur les informations du contrat de l'assuré : {str(e)}")
 
+            """ Comment votre véhicule actuel est-il assuré ? """
+            try:
+                await page.wait_for_selector('.CurrentGuaranteeCode', state='visible', timeout=6000)
+                if profile['CurrentGuaranteeCode'] == "A":
+                    await page.click('div.CurrentGuaranteeCode button[value="A"]')
+                elif profile['CurrentGuaranteeCode'] == "E":
+                    await page.click('div.CurrentGuaranteeCode button[value="E"]')
+                elif profile['CurrentGuaranteeCode'] == "N":
+                    await page.click('div.CurrentGuaranteeCode button[value="N"]')
+                else:
+                    raise ValueError("Erreur sur la valeur prise par CurrentGuaranteeCode")
+                print(
+                    f"----> L'option avec la valeur '\033[34m{profile['CurrentGuaranteeCode']}\033[0m' a été sélectionnée avec succès pour la question : Comment votre véhicule actuel est-il assuré ?.")
+            except PlaywrightTimeoutError:
+                print("L'élément '.CurrentGuaranteeCode' n'est pas visible, passage au champ suivant.")
+            except Exception as e:
+                raise ValueError(
+                    f"Erreur d'exception sur les informations du contrat : {str(e)}")
 
+            """ Quel est votre dernier assureur auto ? """
+            try:
+                await page.wait_for_selector('#CurrentCarrier', state='visible', timeout=6000)
+                await page.select_option('#CurrentCarrier', value=profile['CurrentCarrier'])
+                print(
+                    f"----> L'option avec la valeur '\033[34m{profile['CurrentCarrier']}\033[0m' a été sélectionnée avec succès pour la question : Quel est votre dernier assureur auto ?. ")
+            except PlaywrightTimeoutError:
+                print("Le bouton '.CurrentCarrier' n'est pas visible.")
+            except Exception as e:
+                raise ValueError(
+                    f"Erreur d'exception sur les informations du contrat : {str(e)}")
 
+            """ Quel est le mois d'échéance de votre contrat actuel ? """
+            try:
+                await page.wait_for_selector('#ContractAnniverMth', state='visible', timeout=6000)
+                await page.wait_for_selector('#ContractAnniverMth', state='attached', timeout=10000)
+                await page.select_option('#ContractAnniverMth', value=profile['ContractAnniverMth'])
+                print(
+                    f"----> L'option avec la valeur '\033[34m{profile['ContractAnniverMth']}\033[0m' a été sélectionnée avec succès pour la question : Quel est le mois d'échéance de votre contrat actuel ?. ")
+            except PlaywrightTimeoutError:
+                print("Le bouton '.ContractAnniverMth' n'est pas visible.")
+            except Exception as e:
+                raise ValueError(
+                    f"Erreur d'exception sur les informations du contrat : {str(e)}")
 
+            """ A quelle date souhaitez-vous que votre nouveau contrat débute ? """
+            try:
+                await page.wait_for_selector('#EffectiveDate', state='visible', timeout=6000)
+                await page.locator(".input-group-addon > .fal").click()
+                await page.get_by_role("cell", name="Aujourd'hui").click()
+                print(
+                    f"----> L'option avec la valeur 'Aujourd'hui' a été sélectionnée avec succès pour la question : A quelle date souhaitez-vous que votre nouveau contrat débute ?.")
+            except PlaywrightTimeoutError:
+                print("Le bouton '.EffectiveDate' n'est pas visible.")
+            except Exception as e:
+                raise ValueError(f"Erreur d'exception sur les informations du contrat : {str(e)}")
 
+            """ Quel niveau de protection voulez-vous ? """
+            try:
+                await page.wait_for_selector('.ContrGuaranteeCode', state='visible', timeout=600)
+                if profile['ContrGuaranteeCode'] == "A":
+                    await page.click('div.ContrGuaranteeCode button.list-group-item[value="A"]')
+                elif profile['ContrGuaranteeCode'] == "E":
+                    await page.click('div.ContrGuaranteeCode button.list-group-item[value="E"]')
+                elif profile['ContrGuaranteeCode'] == "C":
+                    await page.click('div.ContrGuaranteeCode button.list-group-item[value="C"]')
+                elif profile['ContrGuaranteeCode'] == "D":
+                    await page.click('div.ContrGuaranteeCode button.list-group-item[value="D"]')
+                else:
+                    raise ValueError("Erreur sur la valeur prise par ContrGuaranteeCode")
+                print(
+                    f"----> L'option avec la valeur '\033[34m{profile['ContrGuaranteeCode']}\033[0m' a été sélectionnée avec succès pour la question : Quel niveau de protection voulez-vous ?.")
+            except PlaywrightTimeoutError:
+                print("L'élément '.ContrGuaranteeCode' n'est pas visible, passage au champ suivant.")
+            except Exception as e:
+                raise ValueError(
+                    f"Erreur d'exception sur les informations du contrat : {str(e)}")
 
+            try:
+                await page.wait_for_selector('.UserOptIn', state='visible', timeout=6000)
+                if profile['UserOptIn'] == '1':
+                    await page.click('div.UserOptIn button.list-group-item[value="1"]')
+                else:
+                    await page.click('div.UserOptIn button.list-group-item[value="0"]')
+            except PlaywrightTimeoutError:
+                print("Le bouton '.UserOptIn' n'est pas visible.")
+            except Exception as e:
+                raise ValueError(f"Erreur d'exception sur l'acceptation de recevoir des offres : {str(e)}")
 
+            try:
+                """ Les coordonnées de l'assuré """
+                await page.wait_for_selector('#TitleAddress', state='visible', timeout=6000)
+                if profile['TitleAddress'] == 'MONSIEUR':
+                    await page.select_option('#TitleAddress', value="MONSIEUR")
+                elif profile['TitleAddress'] == 'MADAME':
+                    await page.select_option('#TitleAddress', value="MADAME")
+                else:
+                    raise ValueError("Erreur sur la valeur prise par TitleAddress ")
+                print(
+                    f"----> L'option avec la valeur '\033[34m{profile['TitleAddress']}\033[0m' a été sélectionnée avec succès pour la civilité ")
+            except PlaywrightTimeoutError:
+                print("L'élément '.TitleAddress' n'est pas visible, passage au champ suivant.")
+            except Exception as e:
+                raise ValueError(
+                    f"Erreur d'exception sur les informations du contrat : {str(e)}")
 
+            try:
+                await page.wait_for_selector('#LastName', state='visible', timeout=6000)
+                await page.type('#LastName', profile['LastName'])
+                print(
+                    f"----> L'option avec la valeur '\033[34m{profile['LastName']}\033[0m' a été sélectionnée avec succès pour le Nom.")
+            except PlaywrightTimeoutError:
+                print("L'élément '.LastName' n'est pas visible, passage au champ suivant.")
+            except Exception as e:
+                raise ValueError(f"Erreur d'exception sur les informations du contrat : {str(e)}")
 
+            try:
+                await page.wait_for_selector('#FirstName', state='visible', timeout=6000)
+                await page.type('#FirstName', profile['FirstName'])
+                print(
+                    f"----> L'option avec la valeur '\033[34m{profile['FirstName']}\033[0m' a été sélectionnée avec succès pour le Prénom.")
+            except PlaywrightTimeoutError:
+                print("L'élément '.FirstName' n'est pas visible, passage au champ suivant.")
+            except Exception as e:
+                raise ValueError(f"Erreur d'exception sur les informations du contrat : {str(e)}")
 
+            try:
+                await page.wait_for_selector('#Address', state='visible', timeout=6000)
+                await page.type('#Address', profile['Address'])
+                print(
+                    f"----> L'option avec la valeur '\033[34m{profile['Address']}\033[0m' a été sélectionnée avec succès pour l'adresse.")
+            except PlaywrightTimeoutError:
+                print("L'élément '.Address' n'est pas visible, passage au champ suivant.")
+            except Exception as e:
+                raise ValueError(f"Erreur d'exception sur les informations du contrat : {str(e)}")
 
+            try:
+                await page.wait_for_selector('#ZipCode', state='visible', timeout=6000)
+                for char in profile['HomeParkZipCode']:
+                    await page.type('#ZipCode', char)
+                print(
+                    f"----> L'option avec la valeur '\033[34m{profile['HomeParkZipCode']}\033[0m' a été sélectionnée avec succès pour le Code Postal.")
+            except PlaywrightTimeoutError:
+                print("L'élément '.ZipCode' n'est pas visible, passage au champ suivant.")
+            except Exception as e:
+                raise ValueError(f"Erreur d'exception sur les informations du contrat : {str(e)}")
+
+            try:
+                await page.wait_for_selector('input#Email', state='visible', timeout=6000)
+                for char in profile['Email']:
+                    await page.type('input#Email', char)
+                print(
+                    f"----> L'option avec la valeur '\033[34m{profile['Email']}\033[0m' a été sélectionnée avec succès pour le Mail.")
+            except PlaywrightTimeoutError:
+                print("L'élément '.Email' n'est pas visible, passage au champ suivant.")
+            except Exception as e:
+                raise ValueError(f"Erreur d'exception sur les informations du contrat : {str(e)}")
+
+            try:
+                await page.wait_for_selector('input#Phone', state='visible', timeout=6000)
+                await page.fill('input#Phone', profile['Phone'])
+                print(
+                    f"----> L'option avec la valeur '\033[34m{profile['Phone']}\033[0m' a été sélectionnée avec succès pour le Téléphone")
+            except PlaywrightTimeoutError:
+                print("L'élément '.Phone' n'est pas visible, passage au champ suivant.")
+            except Exception as e:
+                raise ValueError(f"Erreur d'exception sur les informations du contrat : {str(e)}")
+
+            try:
+                await page.wait_for_selector('.col-xs-12.no-gutter.text-center', state='visible', timeout=6000)
+                if profile['Id'] != '0000':
+                    await page.click('text="Oui, je la conserve"')
+                else:
+                    await page.click('text="Non, je la modifie"')
+                print("==> Choix effectué avec succès.")
+            except PlaywrightTimeoutError:
+                print("Les boutons ne sont pas visibles, passage au champ suivant.")
+            except Exception as e:
+                raise ValueError(f"Erreur d'exception : {str(e)}")
+                # Attendre que la case à cocher soit visible
+            await page.wait_for_selector('#LegalCGU', state='visible', timeout=6000)
+            # Cocher la case en cliquant dessus
+            await page.check('#LegalCGU')
+            print(f"'\033[34m ==> Case LegalCGU cochée avec succès.\033[0m")
+
+            try:
+                # Attendre que la case à cocher soit visible
+                await page.wait_for_selector('#LegalRGPD', state='visible', timeout=6000)
+                # Cocher la case en cliquant dessus
+                await page.check('#LegalRGPD')
+                print(f"'\033[34m ==> Case LegalRGPD cochée avec succès.\033[0m")
+            except PlaywrightTimeoutError:
+                print("La case à cocher n'est pas visible, passage au champ suivant.")
+            except Exception as e:
+                raise ValueError(f"Erreur d'exception : {str(e)}")
+
+            try:
+                # Attendre que la case à cocher soit visible
+                await page.wait_for_selector('#LegalPartner', state='visible', timeout=6000)
+                # Cocher la case
+                await page.check('#LegalPartner')
+                print(f"'\033[34m ==> Case LegalPartner cochée avec succès. \033[0m")
+
+                await page.get_by_label("J'accepte les conditions géné").check()
+                print(f"'\033[34m ===> J'accepte les condions générales \033[0m")
+                await page.get_by_label(
+                    "Je reconnais avoir reçu les informations relatives à la collecte, le traitement").check()
+                print(
+                    f"'\033[34m ===> Je reconnais voir reçu les informations relatives à la collecte, le traitement \033[0m")
+                await page.get_by_label("J'accepte d'être contacté au").check()
+                print(f"'\033[34m ===> J'accepte d'être contacté \033[0m")
+            except PlaywrightTimeoutError:
+                print("La case à cocher n'est pas visible, passage au champ suivant.")
+            except Exception as e:
+                raise ValueError(f"Erreur d'exception : {str(e)}")
+        else:
+            print(f"Le titre trouvé est '{title_text}', ce qui ne correspond pas à 'Vos antécédents'.")
+    except Exception as e:
+        raise ValueError(f"Erreur lors du remplissage du contrat : {str(e)}")
 
 
 async def get_random_browser(playwright: Playwright, bright_data: bool, headless: bool):
@@ -1032,6 +1272,14 @@ async def run_for_profile(playwright: Playwright, profile: dict, headless: bool,
         await fill_antecedents(page, profile)
         await simulate_human_behavior(page)
         await page.wait_for_load_state("networkidle")
+        logger.info("=" * 100)
+        await fill_form_contrats(page, profile)
+        await simulate_human_behavior(page)
+
+        logger.info("=" * 100)
+
+
+
 
 
 
