@@ -828,6 +828,116 @@ async def fill_form_vehicule(page, profile):
         raise ValueError(
             f"Erreur d'exception sur le click du bouton suivant : {str(e)}")
 
+    """ Les antécédents du profil """
+
+async def fill_antecedents(page, profile):
+    try:
+        await page.wait_for_selector('.al_label span', state='visible', timeout=6000)
+        # Récupérer le texte du span
+        title_text = await page.locator('.al_label span').text_content()
+        if title_text.strip() == "Vos antécédents":
+            try:
+                await page.wait_for_selector("select[name='PrimaryApplicantHasBeenInsured']", state='visible', timeout=2 * 60000)
+                if profile['PrimaryApplicantHasBeenInsured'] == "N":
+                    await page.select_option("#PrimaryApplicantHasBeenInsured", value=profile['PrimaryApplicantHasBeenInsured'])
+                    print(f"Option sélectionnée pour la question initiale : {profile['PrimaryApplicantHasBeenInsured']}")
+                    print("Réponse 'Non' sélectionnée. Pas d'autres champs à remplir.")
+                else:
+                    try:
+                        await page.wait_for_selector("select[name='PrimaryApplicantHasBeenInsured']", state='visible',
+                                                     timeout=2 * 60000)
+                        await page.select_option("#PrimaryApplicantHasBeenInsured", value=profile['PrimaryApplicantHasBeenInsured'])
+                        await page.wait_for_selector('#PrimaryApplicantInsuranceYearNb', state='visible', timeout=60000)
+                        await page.select_option('#PrimaryApplicantInsuranceYearNb', value=profile['PrimaryApplicantInsuranceYearNb'])
+                        print(
+                            f"----> L'option avec la valeur '\033[34m{profile['PrimaryApplicantInsuranceYearNb']}\033[0m' a été sélectionnée avec succès pour la question : Assuré sans interruption depuis ?. ")
+                    except PlaywrightTimeoutError:
+                        print("Le bouton '.PrimaryApplicantInsuranceYearNb' n'est pas visible.")
+                    except Exception as e:
+                        raise ValueError(
+                            f"Erreur d'exception sur les informations des antécédents de l'assuré : {str(e)}")
+
+                    """ Etes-vous désigné conducteur principal d'un autre véhicule et assuré à ce titre ? """
+                    try:
+                        await page.wait_for_selector('.PrimaryApplicantIsFirstDrivOtherCar', state='visible', timeout=60000)
+                        if profile['PrimaryApplicantIsFirstDrivOtherCar'] == "Oui":
+                            await page.click('div.PrimaryApplicantIsFirstDrivOtherCar button[value="True"]')
+                        elif profile['PrimaryApplicantIsFirstDrivOtherCar'] == "Non":
+                            await page.click('div.PrimaryApplicantIsFirstDrivOtherCar button[value="False"]')
+                        else:
+                            raise ValueError("Erreur sur la valeur prise par PrimaryApplicantIsFirstDrivOtherCar")
+                        print(
+                            f"----> L'option avec la valeur '\033[34m{profile['PrimaryApplicantIsFirstDrivOtherCar']}\033[0m' a été sélectionnée avec succès pour la question : Etes-vous désigné conducteur principal d'un autre véhicule et assuré à ce titre ?.")
+                    except PlaywrightTimeoutError:
+                        print("L'élément '.PrimaryApplicantIsFirstDrivOtherCar' n'est pas visible, passage au champ suivant.")
+                    except Exception as e:
+                        raise ValueError(f"Erreur d'exception sur les informations des antécédents du conducteur : {str(e)}")
+
+                    """ Avez-vous fait l'objet d'une résiliation par un assureur au cours des 3 dernières années ? """
+                    try:
+                        await page.wait_for_selector('#PrimaryApplicantContrCancell', state='visible', timeout=60000)
+                        await page.select_option('#PrimaryApplicantContrCancell', value=profile['PrimaryApplicantContrCancell'])
+                        print(
+                            f"----> L'option avec la valeur '\033[34m{profile['PrimaryApplicantContrCancell']}\033[0m' a été sélectionnée avec succès pour la question : Avez-vous fait l'objet d'une résiliation par un assureur au cours des 3 dernières années ? . ")
+                    except PlaywrightTimeoutError:
+                        print("Le bouton '.PrimaryApplicantContrCancell' n'est pas visible.")
+                    except Exception as e:
+                        raise ValueError(
+                            f"Erreur d'exception sur les informations des antécédents de l'assuré : {str(e)}")
+
+                    """ Quel est votre bonus-malus auto actuel ? """
+                    try:
+                        await page.wait_for_selector('#PrimaryApplicantBonusCoeff', state='visible', timeout=60000)
+                        await page.select_option('#PrimaryApplicantBonusCoeff', value=profile['PrimaryApplicantBonusCoeff'],
+                                                 strict=True)
+                        print(
+                            f"----> L'option avec la valeur '\033[34m{profile['PrimaryApplicantBonusCoeff']}\033[0m' a été sélectionnée avec succès pour la question : Quel est votre bonus-malus auto actuel ?. ")
+                    except PlaywrightTimeoutError:
+                        print("Le bouton '.PrimaryApplicantBonusCoeff' n'est pas visible.")
+                    except Exception as e:
+                        raise ValueError(
+                            f"Erreur d'exception sur les informations des antécédents de l'assuré : {str(e)}")
+
+                    """ Combien de sinistres avez-vous déclaré (y compris bris de glace) ? """
+                    try:
+                        await page.wait_for_selector('#PrimaryApplicantDisasterLast3year', state='visible', timeout=60000)
+                        await page.select_option('#PrimaryApplicantDisasterLast3year',
+                                                 value=profile['PrimaryApplicantDisasterLast3year'])
+                        print(
+                            f"----> L'option avec la valeur '\033[34m{profile['PrimaryApplicantDisasterLast3year']}\033[0m' a été sélectionnée avec succès pour la question : Combien de sinistres avez-vous déclaré (y compris bris de glace) ? . ")
+                    except PlaywrightTimeoutError:
+                        print("Le bouton '.PrimaryApplicantDisasterLast3year' n'est pas visible.")
+                    except Exception as e:
+                        raise ValueError(
+                            f"Erreur d'exception sur les informations des antécédents de l'assuré : {str(e)}")
+            except PlaywrightTimeoutError:
+                print("Le bouton '.PrimaryApplicantHasBeenInsured' n'est pas visible.")
+            except Exception as e:
+                raise ValueError(
+                    f"Erreur d'exception sur les informations des antécédents de l'assuré : {str(e)}")
+            try:
+                await asyncio.sleep(2)
+                await page.get_by_role("button", name="SUIVANT ").click()
+                print("Navigation vers la page suivante : Votre contrat.")
+            except Exception as e:
+                raise ValueError(
+                    f"Erreur d'exception sur le click du bouton suivant : {str(e)}")
+
+        else:
+            print(f"Le titre trouvé est '{title_text}', ce qui ne correspond pas à 'Vos antécédents'.")
+
+    except PlaywrightTimeoutError:
+        print("Le bouton '..al_label span' n'est pas visible.")
+    except Exception as e:
+        raise ValueError(
+            f"Erreur d'exception sur l'affichage de la page des antécédents: {str(e)}")
+
+
+
+
+
+
+
 
 
 
@@ -913,10 +1023,17 @@ async def run_for_profile(playwright: Playwright, profile: dict, headless: bool,
         logger.info("=" * 100)
         await fill_form_profil(page, profile)
         await simulate_human_behavior(page)
+        await page.wait_for_load_state("networkidle")
         logger.info("=" * 100)
         await fill_form_vehicule(page, profile)
         await simulate_human_behavior(page)
+        await page.wait_for_load_state("networkidle")
         logger.info("=" * 100)
+        await fill_antecedents(page, profile)
+        await simulate_human_behavior(page)
+        await page.wait_for_load_state("networkidle")
+
+
 
     except Exception as e:
         logger.error(f"Erreur lors de l'exécution du profil: {str(e)}")
