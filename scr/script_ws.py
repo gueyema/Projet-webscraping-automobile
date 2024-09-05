@@ -2,6 +2,7 @@ import csv
 import logging
 import asyncio
 from asyncio import Semaphore
+import datetime
 
 import random
 from datetime import datetime, timedelta
@@ -1186,6 +1187,134 @@ async def fill_form_contrats(page, profile):
         raise ValueError(f"Erreur lors du remplissage du contrat : {str(e)}")
 
 
+async def recup_tarifs(page, profile):
+    try:
+        await asyncio.sleep(random.uniform(1, 3))
+        await page.get_by_role("button", name="ACCÉDEZ À VOS DEVIS ").click()
+
+        client = await page.context.new_cdp_session(page)
+        print('Waiting captcha to solve...')
+        solve_res = await client.send('Captcha.waitForSolve', {
+            'detectTimeout': 10000,
+        })
+        print('Captcha solve status:', solve_res['status'])
+
+        print('Navigated! Scraping page content...')
+        print(
+            f"'\033[34m ============== ACCÉDEZ À VOS DEVIS pour le profil avec l'identifiant {profile['Id']}....\033[0m")
+        await page.wait_for_load_state('networkidle', timeout=60000)
+        # Attendre que le formulaire et les offres soient visibles
+        await page.wait_for_selector('.al_form .al_content .container-fluid', state='visible', timeout=5 * 60000)
+
+        offres = await page.query_selector_all('.al_content .container-fluid')
+        profile_details = []
+
+        for offre in offres:
+            element_assureur = await offre.query_selector('.al_carrier')
+            assureur = await element_assureur.inner_text()
+
+            element_prime = await offre.query_selector('.al_premium')
+            prime = await element_prime.inner_text()
+
+            # Ajouter les détails de l'offre dans la liste
+            profile_details.append({
+
+                'Compagnie': assureur,
+                'Prime': prime,
+                'ID': profile['Id'],
+                'TypeBesoin': profile['InsuranceNeed'],
+                'TypeBesoinDetails': profile['InsuranceNeedDetail'],
+                'AgeCar': profile['AddCarAge'],
+                'OtherDriver': profile['OtherDriver'],
+                'CarteGrise': profile['GreyCardOwner'],
+                'Genre': profile['PrimaryApplicantSex'],
+                'DateNaissance': profile['PrimaryApplicantBirthDate'],
+                'Age': profile['CalculatedAge'],
+                'SituationMatrimoniale': profile['PrimaryApplicantMaritalStatus'],
+                'Profession': profile['PrimaryApplicantOccupationCode'],
+                'DateObtentionPermis': profile['PrimaryApplicantDrivLicenseDate'],
+                'ConduiteAccompagné': profile['PrimaryApplicantIsPreLicenseExper'],
+                'DateNaissanceConjoint': profile['ConjointNonSouscripteurBirthDate'],
+                'DatePermisConjoint': profile['ConjointNonSouscripteurDriveLicenseDate'],
+
+                'Enfants_a_charge': profile['HasChild'],
+                'nbre_enfants': profile['nbre_enfants'],
+                'Annee_Enfant_1': profile['ChildBirthDateYear1'],
+                'Annee_Enfant_2': profile['ChildBirthDateYear2'],
+                'Annee_Enfant_3': profile['ChildBirthDateYear3'],
+                'DateAchat': profile['PurchaseDate'],
+                'DateAchat_Prevue': profile['PurchaseDatePrev'],
+                'DateCirculation': profile['FirstCarDrivingDate_1'],
+                'Marque': profile['SpecCarMakeName'],
+                'Modele': profile['SpecCarType'],
+                'Alimentation': profile['SpecCarFuelType'],
+                'Carrosserie': profile['SpecCarBodyType'],
+                'Puissance': profile['SpecCarPower'],
+                'Marque_vehicule_neuf': profile['car_make_value'],
+                'Modele_vehicule_neuf': profile['car_type_value'],
+                'Alimentation_vehicule_neuf': profile['alimentation_value'],
+                'Carrosserie_vehicule_neuf': profile['carosserie_value'],
+                'Puissance_vehicule_neuf': profile['puissance_value'],
+                'ID_vehicule_occasion': profile["code_vehicule_apsad"],
+                'ID_vehicule_neuf': profile["id"],
+                'valeur_a_neuf_vehicule': profile['valeur_a_neuf_vehicule'],
+                'groupe_tarification_vehicule': profile['groupe_tarification_vehicule'],
+                'classe_tarification_vehicule': profile['classe_tarification_vehicule'],
+                'code_type_frequence_rcm': profile['code_type_frequence_rcm'],
+                'code_type_frequence_rcc': profile['code_type_frequence_rcc'],
+                'code_type_frequence_dta': profile['code_type_frequence_dta'],
+                'code_type_frequence_vol': profile['code_type_frequence_vol'],
+                'code_type_vol_vehicule': profile['code_type_vol_vehicule'],
+                'code_type_frequence_bdg': profile['code_type_frequence_bdg'],
+                'ModeFinancement': profile['PurchaseMode'],
+                'Usage': profile['CarUsageCode'],
+                'KmParcours': profile['AvgKmNumber'],
+                'FreqUsage': profile['FreqCarUse'],
+                'CP_Stationnement': profile['HomeParkZipCode'],
+                'Ville_Stationnement': profile['HomeParkInseeCode'],
+                'ResidenceType': profile['HomeType'],
+                'TypeLocation': profile['HomeResidentType'],
+                'CP_Travail': profile['JobParkZipCode'],
+                'Ville_Travail': profile['JobParkInseeCode'],
+                'nom_commune': profile['nom_commune'],
+                'Departement_Code': profile['DepartementCode'],
+                'Type_Parking': profile['ParkingCode'],
+                'TypeAssure': profile['PrimaryApplicantHasBeenInsured'],
+                'NbreAnneeAssure': profile['PrimaryApplicantInsuranceYearNb'],
+                'NbreAnneeAssureConducteurSecon': profile['SecondaryApplicantInsuranceYearNb'],
+                'Bonus': profile['PrimaryApplicantBonusCoeff'],
+                'BonusConducteurSecon': profile['SecondaryApplicantBonusCoeff'],
+                'NbreAnneePossessionVeh': profile['CarOwningTime'],
+                'CtrActuel': profile['CurrentGuaranteeCode'],
+                'AssureurActuel': profile['CurrentCarrier'],
+                'NiveauProtection': profile['ContrGuaranteeCode'],
+                'Date_scraping': profile['DateScraping']
+            })
+        if profile_details:
+            date_du_jour = datetime.now().strftime("%d_%m_%y")
+            nom_fichier_json = f"offres_assureurs_auto_{date_du_jour}.json"
+            # Écrire les offres dans le fichier JSON
+            async with aiofiles.open(nom_fichier_json, mode='a') as f:
+                await f.write(json.dumps(profile_details))
+                await f.write('\n')
+                print(f"=====> Les offres du profil {profile['Id']} ont été stockées dans le fichier:",
+                      nom_fichier_json)
+        else:
+
+            date_du_jour = datetime.now().strftime("%d_%m_%y")
+            nom_fichier_sans_tarif = f"fichiers_profils_sans_tarifs_{date_du_jour}.json"
+            # Écrire les informations du profil dans le fichier JSON des échecs
+            async with aiofiles.open(nom_fichier_sans_tarif, mode='a') as f:
+                await f.write(json.dumps({'ID': profile['Id']}))
+                await f.write('\n')
+                print(f"=====> Le profil {profile['Id']} a été stocké dans le fichier des échecs:", nom_fichier_sans_tarif)
+
+    except PlaywrightTimeoutError:
+        print("Le div '.al_form' n'est pas visible, passage au champ suivant.")
+    except Exception as e:
+        raise ValueError(f"Erreur d'exception sur la recupération des offres : {str(e)}")
+
+
 async def get_random_browser(playwright: Playwright, bright_data: bool, headless: bool):
     browser_choice = random.choice(['chromium', 'firefox'])
     slow_mo = random.randint(500, 2000)
@@ -1275,8 +1404,8 @@ async def run_for_profile(playwright: Playwright, profile: dict, headless: bool,
         logger.info("=" * 100)
         await fill_form_contrats(page, profile)
         await simulate_human_behavior(page)
-
         logger.info("=" * 100)
+        await recup_tarifs(page, profile)
 
 
 
@@ -1285,7 +1414,15 @@ async def run_for_profile(playwright: Playwright, profile: dict, headless: bool,
 
     except Exception as e:
         logger.error(f"Erreur lors de l'exécution du profil: {str(e)}")
-        await page.screenshot(path=f"error_{profile['Id']}.png")
+        date_du_jour = datetime.now().strftime("%d_%m_%y")
+
+        # Créer le nom du fichier avec la date du jour
+        nom_fichier_echecs = f"fichiers_profils_echecs_{date_du_jour}.json"
+        # Écrire les informations du profil dans le fichier JSON des échecs
+        async with aiofiles.open(nom_fichier_echecs, mode='a') as f:
+            await f.write(json.dumps({'ID': profile['Id']}))
+            await f.write('\n')
+            print(f"=====> Le profil {profile['Id']} a été stocké dans le fichier des échecs:", nom_fichier_echecs)
         raise
     finally:
         await context.close()
