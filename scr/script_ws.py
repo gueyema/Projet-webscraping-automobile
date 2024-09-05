@@ -13,14 +13,41 @@ from os import environ
 from playwright.async_api import async_playwright, Playwright, expect, TimeoutError as PlaywrightTimeoutError
 
 # Les paramètres pour la lecture des profils dans le fichier de données
-CSV_FILE = "C:/Users/magueye.gueye/PycharmProjects/Webscraping_AUTO/data/df_profils_sample_2.csv"
-START_LINE = 100
+CSV_FILE = "C:/Users/magueye.gueye/PycharmProjects/Webscraping_AUTO/data/df_profils_v1.csv"
+START_LINE = 11
 END_LINE = 103
 
 
 TIMEOUT = 2 * 60000
 SBR_WS_CDP = 'wss://brd-customer-hl_e9a5f52e-zone-scraping_browser1:jpuci55coo47@brd.superproxy.io:9222'
 TARGET_URL = environ.get('TARGET_URL', default='https://www.assurland.com/')
+
+# Liste d'agents utilisateurs
+USER_AGENTS = [
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/114.0",
+    "Mozilla/5.0 (Windows NT 10.0; WOW64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36 OPR/113.0.0.0",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.3",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.3",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 Edg/124.0.0.",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36 Edg/125.0.0.",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36 Edg/126.0.0.",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36 OPR/112.0.0.",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.3",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36 Edg/127.0.0.",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.3",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36 Edg/127.0.2651.105",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36 Edg/128.0.0.",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36 OPR/113.0.0.0",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; Xbox; Xbox One) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36 Edge/44.18363.8131",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/115.",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:129.0) Gecko/20100101 Firefox/129.",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:129.0) Gecko/20100101 Firefox/129.0"]
+
+# Liste de langues
+LANGUAGES = ["fr-FR", "en-GB", "de-DE", "es-ES"]
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -451,172 +478,457 @@ async def fill_form_vehicule(page, profile):
     except Exception as e:
         raise ValueError(f"Erreur d'exception sur les informations de la selection de Modéle / Marque : {str(e)}")
 
-    """ Date d'achat prévue de la voiture """
+    """ Condition si le projet consiste à un achat de véhicule neuf """
     try:
-        await page.wait_for_selector('#PurchaseDatePrev', state='visible', timeout=6000)
-        await page.get_by_label("Date d'achat prévue du vé").click()
-        await page.get_by_role("cell", name="Aujourd'hui").click()
-        print(
-            f"----> L'option avec la valeur Aujourd'hui a été sélectionnée avec succès pour la question : La date d'achat.")
-    except PlaywrightTimeoutError:
-        print("Le bouton '.PurchaseDatePrev' n'est pas visible.")
-    except Exception as e:
-        raise ValueError(f"Erreur d'exception sur les informations de la date d'achat prévue : {str(e)}")
+        if profile['InsuranceNeed'] == "Vous comptez l'acheter" and profile['AddCarAge'] == "Neuve":
+            try:
+                await page.wait_for_selector('#PurchaseDatePrev', state='visible', timeout=6000)
+                await page.get_by_label("Date d'achat prévue du vé").click()
+                await page.get_by_role("cell", name="Aujourd'hui").click()
+                print(
+                    f"----> L'option avec la valeur Aujourd'hui a été sélectionnée avec succès pour la question : La date d'achat.")
+            except PlaywrightTimeoutError:
+                print("Le bouton '.PurchaseDatePrev' n'est pas visible.")
+            except Exception as e:
+                raise ValueError(f"Erreur d'exception sur les informations de la date d'achat prévue : {str(e)}")
 
-    """ Date d'achat de la voiture """
-    try:
-        await page.wait_for_selector('#PurchaseDate', state='visible', timeout=6000)
-        select_PurchaseDate = profile['PurchaseDate']
-        await page.type('#PurchaseDate', select_PurchaseDate, strict=True)
-        await page.get_by_label("Date d'achat :").click()
-        print(
-            f"----> L'option avec la valeur '\033[34m{select_PurchaseDate}\033[0m' a été sélectionnée avec succès pour la question : Date d'achat du véhicule. ")
-    except PlaywrightTimeoutError:
-        print("Le bouton '.PurchaseDate' n'est pas visible.")
-    except Exception as e:
-        raise ValueError(f"Erreur d'exception sur les informations de la date d'achat : {str(e)}")
+            """ Marque de la voiture """
+            try:
+                await page.wait_for_selector("#SpecCarMakeName", state="visible", timeout=TIMEOUT)
+                await page.select_option("#SpecCarMakeName", label=profile['car_make_value'])
+                print(f"----> Marque de la voiture '{profile['car_make_value']}' sélectionné avec succès.")
+            except PlaywrightTimeoutError:
+                print("Le bouton '.SpecCarMakeName' n'est pas visible.")
+            except Exception as e:
+                logging.error(f"Erreur lors de la sélection de la marque de voiture: {str(e)}")
+                raise ValueError(f"Erreur lors de la sélection de la marque de voiture : {str(e)}")
 
-    """ Date de mise en circulation """
+            """ Modéle de la marque de voiture """
+            await asyncio.sleep(2)
+            try:
+                await page.wait_for_selector("#SpecCarType", state="visible", timeout=2 * 60000)
+                element_SpecCarType = await page.query_selector("#SpecCarType")
+                await element_SpecCarType.wait_for_element_state("enabled", timeout=6000)
+                await page.select_option("#SpecCarType", label=profile['car_type_value'], timeout=6000)
+                print(f"----> Modéle de la voiture '{profile['car_type_value']}' sélectionné avec succès.")
+            except PlaywrightTimeoutError:
+                print("Le bouton '.SpecCarType' n'est pas visible.")
+            except Exception as e:
+                logging.error(f"Erreur lors de la sélection du modéle de voiture: {str(e)}")
+                raise ValueError(f"Erreur lors de la sélection du modéle de voiture : {str(e)}")
+
+            """ Type d'alimentation de la voiture """
+            await asyncio.sleep(3)
+            try:
+                await page.wait_for_selector("#SpecCarFuelType", state="visible", timeout=TIMEOUT)
+                element_SpecCarFuelType = await page.query_selector("#SpecCarFuelType")
+                await element_SpecCarFuelType.wait_for_element_state("enabled", timeout=60000)
+                await page.select_option("#SpecCarFuelType", value=profile['alimentation_value'], timeout=6000)
+                print(f"----> Alimentation de la voiture '{profile['alimentation_value']}' sélectionné avec succès.")
+            except PlaywrightTimeoutError:
+                print("Le bouton '.SpecCarFuelType' n'est pas visible.")
+            except Exception as e:
+                logging.error(f"Erreur lors de la sélection de Alimentation de voiture: {str(e)}")
+                raise ValueError(f"Erreur lors de la sélection de Alimentation de voiture : {str(e)}")
+
+            """ Type de carrosserie de la voiture """
+            await asyncio.sleep(3)
+            try:
+                await page.wait_for_selector("#SpecCarBodyType", state="visible", timeout=TIMEOUT)
+                element_SpecCarBodyType = await page.query_selector("#SpecCarBodyType")
+                await element_SpecCarBodyType.wait_for_element_state("enabled", timeout=60000)
+                await page.select_option("#SpecCarBodyType", value=profile['carosserie_value'], timeout=6000)
+                print(f"----> Carosserie de la voiture '{profile['carosserie_value']}' sélectionnée avec succès.")
+            except PlaywrightTimeoutError:
+                print(f"Le sélecteur SpecCarBodyType n'est pas devenu visible dans le délai imparti.")
+            except Exception as e:
+                logging.error(f"Erreur lors de la sélection de la carrosserie de la voiture: {str(e)}")
+                raise ValueError(f"Erreur lors de la sélection de la carrosserie de voiture : {str(e)}")
+
+            """ Puissance de la voiture """
+            await asyncio.sleep(2)
+            try:
+                await page.wait_for_selector("#SpecCarPower", state="visible", timeout=TIMEOUT)
+                await page.select_option("#SpecCarPower", value=profile['puissance_value'], strict=True)
+                print(f"----> Puissance de la voiture '{profile['puissance_value']}' sélectionnée avec succès.")
+            except PlaywrightTimeoutError:
+                print(f"Le sélecteur #SpecCarPower n'est pas visible.")
+            except Exception as e:
+                logging.error(f"Erreur lors de la sélection de la puissance de la voiture: {str(e)}")
+                raise ValueError(f"Erreur lors de la sélection de la puissance de voiture : {str(e)}")
+
+            """ ID de la voiture """
+            try:
+                await page.wait_for_selector('.modal-content', state='visible', timeout=60000)
+                select_vehicule = profile['id']
+                await page.click(f'#{select_vehicule}')
+                print(
+                    f"----> L'option avec la valeur '\033[34m{select_vehicule}\033[0m' a été sélectionnée avec succès pour la question : ID du véhicule ")
+            except PlaywrightTimeoutError:
+                print("Le div '.modal-content' n'est pas visible.")
+            except Exception as e:
+                raise ValueError(f"Erreur d'exception sur les informations de l'ID du véhicule : {str(e)}")
+        else:
+            """ Date d'achat prévue de la voiture """
+            try:
+                await page.wait_for_selector('#PurchaseDatePrev', state='visible', timeout=6000)
+                await page.get_by_label("Date d'achat prévue du vé").click()
+                await page.get_by_role("cell", name="Aujourd'hui").click()
+                print(
+                    f"----> L'option avec la valeur Aujourd'hui a été sélectionnée avec succès pour la question : La date d'achat.")
+            except PlaywrightTimeoutError:
+                print("Le bouton '.PurchaseDatePrev' n'est pas visible.")
+            except Exception as e:
+                raise ValueError(f"Erreur d'exception sur les informations de la date d'achat prévue : {str(e)}")
+
+            """ Date d'achat de la voiture """
+            try:
+                await page.wait_for_selector('#PurchaseDate', state='visible', timeout=6000)
+                select_PurchaseDate = profile['PurchaseDate']
+                await page.type('#PurchaseDate', select_PurchaseDate, strict=True)
+                await page.get_by_label("Date d'achat :").click()
+                print(
+                    f"----> L'option avec la valeur '\033[34m{select_PurchaseDate}\033[0m' a été sélectionnée avec succès pour la question : Date d'achat du véhicule. ")
+            except PlaywrightTimeoutError:
+                print("Le bouton '.PurchaseDate' n'est pas visible.")
+            except Exception as e:
+                raise ValueError(f"Erreur d'exception sur les informations de la date d'achat : {str(e)}")
+
+            """ Date de mise en circulation """
+            try:
+                await page.wait_for_selector('#FirstCarDrivingDate', state='visible', timeout=6000)
+                await page.type("#FirstCarDrivingDate", profile['FirstCarDrivingDate_1'], strict=True)
+                await page.get_by_label("Date de 1ère mise en").click()
+                await page.get_by_label("Date de 1ère mise en").press("Enter")
+                print(
+                    f"----> L'option avec la valeur '\033[34m{profile['FirstCarDrivingDate_1']}\033[0m' a été sélectionnée avec succès pour la question : Date de mise en circulation du véhicule. ")
+            except PlaywrightTimeoutError:
+                print("Le bouton '.FirstCarDrivingDate' n'est pas visible.")
+            except Exception as e:
+                raise ValueError(
+                    f"Erreur d'exception sur les informations de la date de mise en circulation du véhicule : {str(e)}")
+
+            """ Marque de la voiture """
+            try:
+                await page.wait_for_selector("#SpecCarMakeName", state="visible", timeout=TIMEOUT)
+                await page.select_option("#SpecCarMakeName", label=profile['SpecCarMakeName'])
+                print(f"----> Marque de la voiture '{profile['SpecCarMakeName']}' sélectionné avec succès.")
+            except PlaywrightTimeoutError:
+                print("Le bouton '.SpecCarMakeName' n'est pas visible.")
+            except Exception as e:
+                logging.error(f"Erreur lors de la sélection de la marque de voiture: {str(e)}")
+                raise ValueError(f"Erreur lors de la sélection de la marque de voiture : {str(e)}")
+
+            """ Modéle de la marque de voiture """
+            await asyncio.sleep(2)
+            try:
+                await page.wait_for_selector("#SpecCarType", state="visible", timeout=2 * 60000)
+                element_SpecCarType = await page.query_selector("#SpecCarType")
+                await element_SpecCarType.wait_for_element_state("enabled", timeout=6000)
+                await page.select_option("#SpecCarType", label=profile['SpecCarType'], timeout=6000)
+                print(f"----> Modéle de la voiture '{profile['SpecCarType']}' sélectionné avec succès.")
+            except PlaywrightTimeoutError:
+                print("Le bouton '.SpecCarType' n'est pas visible.")
+            except Exception as e:
+                logging.error(f"Erreur lors de la sélection du modéle de voiture: {str(e)}")
+                raise ValueError(f"Erreur lors de la sélection du modéle de voiture : {str(e)}")
+
+            """ Type d'alimentation de la voiture """
+            await asyncio.sleep(3)
+            try:
+                await page.wait_for_selector("#SpecCarFuelType", state="visible", timeout=TIMEOUT)
+                element_SpecCarFuelType = await page.query_selector("#SpecCarFuelType")
+                await element_SpecCarFuelType.wait_for_element_state("enabled", timeout=60000)
+                await page.select_option("#SpecCarFuelType", value=profile['SpecCarFuelType'], timeout=6000)
+                print(f"----> Alimentation de la voiture '{profile['SpecCarFuelType']}' sélectionné avec succès.")
+            except PlaywrightTimeoutError:
+                print("Le bouton '.SpecCarFuelType' n'est pas visible.")
+            except Exception as e:
+                logging.error(f"Erreur lors de la sélection de Alimentation de voiture: {str(e)}")
+                raise ValueError(f"Erreur lors de la sélection de Alimentation de voiture : {str(e)}")
+
+            """ Type de carrosserie de la voiture """
+            await asyncio.sleep(3)
+            try:
+                await page.wait_for_selector("#SpecCarBodyType", state="visible", timeout=TIMEOUT)
+                element_SpecCarBodyType = await page.query_selector("#SpecCarBodyType")
+                await element_SpecCarBodyType.wait_for_element_state("enabled", timeout=60000)
+                await page.select_option("#SpecCarBodyType", value=profile['SpecCarBodyType'], timeout=6000)
+                print(f"----> Carosserie de la voiture '{profile['SpecCarBodyType']}' sélectionnée avec succès.")
+            except PlaywrightTimeoutError:
+                print(f"Le sélecteur SpecCarBodyType n'est pas devenu visible dans le délai imparti.")
+            except Exception as e:
+                logging.error(f"Erreur lors de la sélection de la carrosserie de la voiture: {str(e)}")
+                raise ValueError(f"Erreur lors de la sélection de la carrosserie de voiture : {str(e)}")
+
+            """ Puissance de la voiture """
+            await asyncio.sleep(2)
+            try:
+                await page.wait_for_selector("#SpecCarPower", state="visible", timeout=TIMEOUT)
+                await page.select_option("#SpecCarPower", value=profile['SpecCarPower'], strict=True)
+                print(f"----> Puissance de la voiture '{profile['SpecCarPower']}' sélectionnée avec succès.")
+            except PlaywrightTimeoutError:
+                print(f"Le sélecteur #SpecCarPower n'est pas visible.")
+            except Exception as e:
+                logging.error(f"Erreur lors de la sélection de la puissance de la voiture: {str(e)}")
+                raise ValueError(f"Erreur lors de la sélection de la puissance de voiture : {str(e)}")
+
+            """ ID de la voiture """
+            try:
+                await page.wait_for_selector('.modal-content', state='visible', timeout=60000)
+                select_vehicule = profile['code_vehicule_apsad']
+                await page.click(f'#{select_vehicule}')
+                print(
+                    f"----> L'option avec la valeur '\033[34m{select_vehicule}\033[0m' a été sélectionnée avec succès pour la question : ID du véhicule ")
+            except PlaywrightTimeoutError:
+                print("Le div '.modal-content' n'est pas visible.")
+            except Exception as e:
+                raise ValueError(f"Erreur d'exception sur les informations de l'ID du véhicule : {str(e)}")
+    except Exception as e:
+        raise ValueError(f"Erreur d'exception sur les informations de la marque du véhicule : {str(e)}")
+
+    """ Mode de financement """
     try:
-        await page.wait_for_selector('#FirstCarDrivingDate', state='visible', timeout=6000)
-        await page.type("#FirstCarDrivingDate", profile['FirstCarDrivingDate_2'], strict=True)
-        await page.get_by_label("Date de 1ère mise en").click()
-        await page.get_by_label("Date de 1ère mise en").press("Enter")
+        await page.wait_for_selector('#PurchaseMode', state='visible', timeout=60000)
+        await page.select_option('#PurchaseMode', value=profile['PurchaseMode'])
         print(
-            f"----> L'option avec la valeur '\033[34m{profile['FirstCarDrivingDate_2']}\033[0m' a été sélectionnée avec succès pour la question : Date de mise en circulation du véhicule. ")
+            f"----> L'option avec la valeur '\033[34m{profile['PurchaseMode']}\033[0m' a été sélectionnée avec succès pour la question : Mode de financement. ")
     except PlaywrightTimeoutError:
-        print("Le bouton '.FirstCarDrivingDate' n'est pas visible.")
+        print("Le bouton '.PurchaseMode' n'est pas visible.")
     except Exception as e:
         raise ValueError(
-            f"Erreur d'exception sur les informations de la date de mise en circulation du véhicule : {str(e)}")
+            f"Erreur d'exception sur les informations du mode de financement {str(e)}")
 
-    """ Marque de la voiture """
+    """ Usage prévu  """
     try:
-        await page.wait_for_selector("#SpecCarMakeName", state="visible", timeout=TIMEOUT)
-        await page.select_option("#SpecCarMakeName", label=profile['SpecCarMakeName'])
-        print(f"----> Marque de la voiture '{profile['SpecCarMakeName']}' sélectionné avec succès.")
-    except PlaywrightTimeoutError:
-        print("Le bouton '.SpecCarMakeName' n'est pas visible.")
-    except Exception as e:
-        logging.error(f"Erreur lors de la sélection de la marque de voiture: {str(e)}")
-        raise ValueError(f"Erreur lors de la sélection de la marque de voiture : {str(e)}")
-
-    """ Modéle de la marque de voiture """
-    await asyncio.sleep(2)
-    try:
-        await page.wait_for_selector("#SpecCarType", state="visible", timeout=2 * 60000)
-        element_SpecCarType = await page.query_selector("#SpecCarType")
-        await element_SpecCarType.wait_for_element_state("enabled", timeout=6000)
-        await page.select_option("#SpecCarType", label=profile['SpecCarType'], timeout=6000)
-        print(f"----> Modéle de la voiture '{profile['SpecCarType']}' sélectionné avec succès.")
-    except PlaywrightTimeoutError:
-        print("Le bouton '.SpecCarType' n'est pas visible.")
-    except Exception as e:
-        logging.error(f"Erreur lors de la sélection du modéle de voiture: {str(e)}")
-        raise ValueError(f"Erreur lors de la sélection du modéle de voiture : {str(e)}")
-
-    """ Type d'alimentation de la voiture """
-    await asyncio.sleep(3)
-    try:
-        await page.wait_for_selector("#SpecCarFuelType", state="visible", timeout=TIMEOUT)
-        element_SpecCarFuelType = await page.query_selector("#SpecCarFuelType")
-        await element_SpecCarFuelType.wait_for_element_state("enabled", timeout=60000)
-        await page.select_option("#SpecCarFuelType", value=profile['SpecCarFuelType'], timeout=6000)
-        print(f"----> Alimentation de la voiture '{profile['SpecCarFuelType']}' sélectionné avec succès.")
-    except PlaywrightTimeoutError:
-        print("Le bouton '.SpecCarFuelType' n'est pas visible.")
-    except Exception as e:
-        logging.error(f"Erreur lors de la sélection de Alimentation de voiture: {str(e)}")
-        raise ValueError(f"Erreur lors de la sélection de Alimentation de voiture : {str(e)}")
-
-    """ Type de carrosserie de la voiture """
-    await asyncio.sleep(3)
-    try:
-        await page.wait_for_selector("#SpecCarBodyType", state="visible", timeout=TIMEOUT)
-        element_SpecCarBodyType = await page.query_selector("#SpecCarBodyType")
-        await element_SpecCarBodyType.wait_for_element_state("enabled", timeout=60000)
-        await page.select_option("#SpecCarBodyType", value=profile['SpecCarBodyType'], timeout=6000)
-        print(f"----> Carosserie de la voiture '{profile['SpecCarBodyType']}' sélectionnée avec succès.")
-    except PlaywrightTimeoutError:
-        print(f"Le sélecteur SpecCarBodyType n'est pas devenu visible dans le délai imparti.")
-    except Exception as e:
-        logging.error(f"Erreur lors de la sélection de la carrosserie de la voiture: {str(e)}")
-        raise ValueError(f"Erreur lors de la sélection de la carrosserie de voiture : {str(e)}")
-
-    """ Puissance de la voiture """
-    await asyncio.sleep(2)
-    try:
-        await page.wait_for_selector("#SpecCarPower", state="visible", timeout=TIMEOUT)
-        await page.select_option("#SpecCarPower", value=profile['SpecCarPower'], strict=True)
-        print(f"----> Puissance de la voiture '{profile['SpecCarPower']}' sélectionnée avec succès.")
-    except PlaywrightTimeoutError:
-        print(f"Le sélecteur #SpecCarPower n'est pas visible.")
-    except Exception as e:
-        logging.error(f"Erreur lors de la sélection de la puissance de la voiture: {str(e)}")
-        raise ValueError(f"Erreur lors de la sélection de la puissance de voiture : {str(e)}")
-
-    """ ID de la voiture """
-    try:
-        await page.wait_for_selector('.modal-content', state='visible', timeout=60000)
-        select_vehicule = profile['code_vehicule_apsad']
-        await page.click(f'#{select_vehicule}')
+        await page.wait_for_selector('#CarUsageCode', state='visible', timeout=60000)
+        await page.select_option('#CarUsageCode', value=profile['CarUsageCode'])
         print(
-            f"----> L'option avec la valeur '\033[34m{select_vehicule}\033[0m' a été sélectionnée avec succès pour la question : ID du véhicule ")
+            f"----> L'option avec la valeur '\033[34m{profile['CarUsageCode']}\033[0m' a été sélectionnée avec succès pour la question : Usage prévu . ")
     except PlaywrightTimeoutError:
-        print("Le div '.modal-content' n'est pas visible.")
+        print("Le bouton '.CarUsageCode' n'est pas visible.")
     except Exception as e:
-        raise ValueError(f"Erreur d'exception sur les informations de l'ID du véhicule : {str(e)}")
+        raise ValueError(
+            f"Erreur d'exception sur les informations de l'usage prévu {str(e)}")
+
+    """ Kilomètres parcourus par an  """
+    try:
+        await page.wait_for_selector('#AvgKmNumber', state='visible', timeout=60000)
+        await page.select_option('#AvgKmNumber', value=profile['AvgKmNumber'])
+        print(
+            f"----> L'option avec la valeur '\033[34m{profile['AvgKmNumber']}\033[0m' a été sélectionnée avec succès pour la question : Kilomètres parcourus par an. ")
+    except PlaywrightTimeoutError:
+        print("Le bouton '.AvgKmNumber' n'est pas visible.")
+    except Exception as e:
+        raise ValueError(
+            f"Erreur d'exception sur les informations du Kilomètres parcourus par an {str(e)}")
+
+    """ Combien de fois en moyenne utilisez-vous votre véhicule  """
+    try:
+
+        await page.wait_for_selector('#FreqCarUse', state='visible', timeout=30000)
+        await page.select_option('#FreqCarUse', value=profile['FreqCarUse'])
+        print(
+            f"----> L'option avec la valeur '\033[34m{profile['FreqCarUse']}\033[0m' a été sélectionnée avec succès pour la question : Combien de fois en moyenne utilisez-vous votre véhicule. ")
+
+    except PlaywrightTimeoutError:
+        print("Le bouton '.FreqCarUse' n'est pas visible.")
+    except Exception as e:
+        raise ValueError(
+            f"Erreur d'exception sur les informations de la fréquence d'usage {str(e)}")
+
+    """ Code postal du lieu de stationnement la nuit  """
+    try:
+        await page.wait_for_selector('#HomeParkZipCode', state='visible', timeout=60000)
+        await page.type('#HomeParkZipCode', profile['HomeParkZipCode'])
+        print(
+            f"----> L'option avec la valeur '\033[34m{profile['HomeParkZipCode']}\033[0m' a été sélectionnée avec succès pour la question : Code postal du lieu de stationnement la nuit. ")
+    except PlaywrightTimeoutError:
+        print("Le bouton '.HomeParkZipCode' n'est pas visible.")
+    except Exception as e:
+        raise ValueError(
+            f"Erreur d'exception sur les informations du code postal du lieu de stationnement : {str(e)}")
+
+    """ Ville du lieu de stationnement la nuit  """
+    try:
+        await page.wait_for_selector('#HomeParkInseeCode', state='visible', timeout=60000)
+        await page.select_option('#HomeParkInseeCode', value=profile['HomeParkInseeCode'])
+        print(
+            f"----> L'option avec la valeur '\033[34m{profile['HomeParkInseeCode']}\033[0m' a été sélectionnée avec succès pour la question : Ville du lieu de stationnement la nuit. ")
+    except PlaywrightTimeoutError:
+        print("Le bouton '.HomeParkInseeCode' n'est pas visible.")
+    except Exception as e:
+        raise ValueError(
+            f"Erreur d'exception sur les informations de la ville du lieu de stationnement : {str(e)}")
+
+    """ Votre résidence principale  """
+    try:
+        await page.wait_for_selector('#HomeType', state='visible', timeout=60000)
+        await page.select_option('#HomeType', value=profile['HomeType'])
+        print(
+            f"----> L'option avec la valeur '\033[34m{profile['HomeType']}\033[0m' a été sélectionnée avec succès pour la question : Votre résidence principale. ")
+    except PlaywrightTimeoutError:
+        print("Le bouton '.HomeType' n'est pas visible.")
+    except Exception as e:
+        raise ValueError(
+            f"Erreur d'exception sur les informations de Votre résidence principale : {str(e)}")
+
+    """ Type de location """
+    try:
+        await page.wait_for_selector('#HomeResidentType', state='visible', timeout=60000)
+        await page.select_option('#HomeResidentType', value=profile['HomeResidentType'])
+        print(
+            f"----> L'option avec la valeur '\033[34m{profile['HomeResidentType']}\033[0m' a été sélectionnée avec succès pour la question : Type de location . ")
+    except PlaywrightTimeoutError:
+        print("Le bouton '.HomeResidentType' n'est pas visible.")
+    except Exception as e:
+        raise ValueError(
+            f"Erreur d'exception sur les informations de Votre Type de location : {str(e)}")
+
+    """ Code postal du lieu de travail  """
+    try:
+        await page.wait_for_selector('#JobParkZipCode', state='visible', timeout=6000)
+        await page.type('#JobParkZipCode', profile['JobParkZipCode'])
+        print(
+            f"----> L'option avec la valeur '\033[34m{profile['JobParkZipCode']}\033[0m' a été sélectionnée avec succès pour la question : Code postal du lieu de travail. ")
+    except PlaywrightTimeoutError:
+        print("Le bouton '.JobParkZipCode' n'est pas visible.")
+    except Exception as e:
+        raise ValueError(
+            f"Erreur d'exception sur les informations du Code postal du lieu de travail : {str(e)}")
+
+    """ Ville du lieu de travail   """
+    try:
+        await page.wait_for_selector('#JobParkInseeCode', state='visible', timeout=6000)
+        await page.select_option('#JobParkInseeCode', value=profile['JobParkInseeCode'])
+        print(
+            f"----> L'option avec la valeur '\033[34m{profile['JobParkInseeCode']}\033[0m' a été sélectionnée avec succès pour la question : Ville du lieu de travail. ")
+    except PlaywrightTimeoutError:
+        print("Le bouton '.JobParkInseeCode' n'est pas visible.")
+    except Exception as e:
+        raise ValueError(
+            f"Erreur d'exception sur les informations de la Ville du lieu de travail : {str(e)}")
+
+    """ Mode de parking la nuit """
+    try:
+        await page.wait_for_selector('#ParkingCode', state='visible', timeout=60000)
+        await page.select_option('#ParkingCode', value=profile['ParkingCode'])
+        print(
+            f"----> L'option avec la valeur '\033[34m{profile['ParkingCode']}\033[0m' a été sélectionnée avec succès pour la question : Mode de parking la nuit. ")
+    except PlaywrightTimeoutError:
+        print("Le bouton '.ParkingCode' n'est pas visible.")
+    except Exception as e:
+        raise ValueError(
+            f"Erreur d'exception sur les informations du Mode de parking la nuit : {str(e)}")
+    try:
+        await asyncio.sleep(2)
+        await page.get_by_role("button", name="SUIVANT ").click()
+        print("Navigation vers la page suivante : Vos antécédents.")
+    except Exception as e:
+        raise ValueError(
+            f"Erreur d'exception sur le click du bouton suivant : {str(e)}")
 
 
 
-async def run_for_profile(playwright: Playwright, profile: dict, headless: bool, bright_data: bool, url=TARGET_URL) -> None:
-    """
-    Exécute le script de scraping pour un profil donné.
-    """
-    await asyncio.sleep(random.uniform(1, 2))
+
+
+
+
+
+
+async def get_random_browser(playwright: Playwright, bright_data: bool, headless: bool):
+    browser_choice = random.choice(['chromium', 'firefox'])
+    slow_mo = random.randint(500, 2000)
+    viewport = {
+      "width": random.randint(1024, 1920),
+      "height": random.randint(768, 1080)
+    }
+    user_agent = random.choice(USER_AGENTS)
+    language = random.choice(LANGUAGES)
+
+    launch_options = {
+      "headless": headless,
+      "slow_mo": slow_mo,
+    }
+
     if bright_data:
-        browser = await playwright.chromium.connect_over_cdp(SBR_WS_CDP)
+        browser = await getattr(playwright, browser_choice).connect_over_cdp(SBR_WS_CDP, **launch_options)
     else:
-        browser = await playwright.chromium.launch(headless=headless, slow_mo=3)
-    context = await browser.new_context()
-    # Créer une nouvelle page
+        browser = await getattr(playwright, browser_choice).launch(**launch_options)
+
+    context = await browser.new_context(
+      viewport=viewport,
+      user_agent=user_agent,
+      locale=language
+    )
+
+    logger.info(f"{browser_choice.capitalize()} a été choisi avec les options : {launch_options}, viewport: {viewport}, user_agent: {user_agent}, locale: {language}")
+    return browser, context
+
+async def simulate_human_behavior(page):
+    await page.evaluate("window.scrollTo(0, document.body.scrollHeight * Math.random());")
+    await page.wait_for_timeout(random.randint(1000, 3000))
+    await page.mouse.move(random.randint(100, 500), random.randint(100, 500))
+    await page.wait_for_timeout(random.randint(500, 1500))
+
+
+async def run_for_profile(playwright: Playwright, profile: dict, headless: bool, bright_data: bool,
+                          url=TARGET_URL) -> None:
+    await asyncio.sleep(random.uniform(1, 2))
+
+    await asyncio.sleep(random.uniform(1, 2))
+
+    browser, context = await get_random_browser(playwright, bright_data, headless)
     page = await context.new_page()
 
-
-    await asyncio.sleep(2)
+    # Ajouter un script furtif
+    await page.add_init_script("""
+          Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
+          Object.defineProperty(navigator, 'plugins', {get: () => [1, 2, 3, 4, 5]});""")
 
     try:
-        # Dans votre fonction run_for_profile :
-        await exponential_backoff(page, 'https://www.assurland.com/')
+        await exponential_backoff(page, url)
+        await simulate_human_behavior(page)
+
         actions = [
             page.get_by_role("button", name="Continuer sans accepter").click,
             page.get_by_role("button", name="Tout accepter").click
         ]
         await random.choice(actions)()
+        await simulate_human_behavior(page)
+
         AUTO_INSURANCE_SELECTOR = "div.al_product.al_car[title='Comparez les assurances auto']"
         await page.wait_for_selector(AUTO_INSURANCE_SELECTOR, state="visible", timeout=30000)
         auto_insurance_div = page.locator(AUTO_INSURANCE_SELECTOR)
         await expect(auto_insurance_div).to_be_enabled(timeout=30000)
         await auto_insurance_div.click()
+        await simulate_human_behavior(page)
+
         logger.info("Cliqué sur le div 'Comparez les assurances auto'")
         print(f"Le profil '{profile['Id']}' est lancé....")
 
         await fill_form_projet(page, profile)
+        await simulate_human_behavior(page)
         await page.wait_for_load_state("networkidle")
         logger.info("=" * 100)
         await fill_form_profil(page, profile)
+        await simulate_human_behavior(page)
         logger.info("=" * 100)
         await fill_form_vehicule(page, profile)
+        await simulate_human_behavior(page)
         logger.info("=" * 100)
-
 
     except Exception as e:
         logger.error(f"Erreur lors de l'exécution du profil: {str(e)}")
-        await page.screenshot(path="error_run_for_profile.png")
+        await page.screenshot(path=f"error_{profile['Id']}.png")
         raise
     finally:
         await context.close()
         await browser.close()
+
+
+
+
 
 
 async def main(headless: bool, bright_data: bool, max_concurrent: int = 1):
