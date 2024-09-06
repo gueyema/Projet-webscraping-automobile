@@ -15,8 +15,8 @@ from playwright.async_api import async_playwright, Playwright, expect, TimeoutEr
 
 # Les paramètres pour la lecture des profils dans le fichier de données
 CSV_FILE = "C:/Users/User/Documents/GitHub/Projet-webscraping-automobile/data/df_profils_v1.csv"
-START_LINE = 101
-END_LINE = 200
+START_LINE = 201
+END_LINE = 1000
 
 
 TIMEOUT = 2 * 60000
@@ -1293,7 +1293,7 @@ async def recup_tarifs(page, profile):
             })
         if profile_details:
             date_du_jour = datetime.now().strftime("%d_%m_%y")
-            nom_fichier_json = f"offres_assureurs_auto_{date_du_jour}.json"
+            nom_fichier_json = f"offres_assureurs_auto_v2_{date_du_jour}.json"
             # Écrire les offres dans le fichier JSON
             async with aiofiles.open(nom_fichier_json, mode='a') as f:
                 await f.write(json.dumps(profile_details))
@@ -1337,9 +1337,7 @@ async def get_random_browser(playwright: Playwright, bright_data: bool, headless
         browser = await getattr(playwright, browser_choice).launch(**launch_options)
 
     context = await browser.new_context(
-      viewport=viewport,
-      user_agent=user_agent,
-      locale=language
+      viewport=viewport
     )
 
     logger.info(f"{browser_choice.capitalize()} a été choisi avec les options : {launch_options}, viewport: {viewport}, user_agent: {user_agent}, locale: {language}")
@@ -1434,7 +1432,7 @@ async def run_for_profile(playwright: Playwright, profile: dict, headless: bool,
 
 
 
-async def main(headless: bool, bright_data: bool, max_concurrent: int = 10):
+async def main(headless: bool, bright_data: bool, max_concurrent: int = 20):
     profiles = read_csv_profiles()
     if not profiles:
         logger.error("Aucun profil n'a été lu. Fin du programme.")
@@ -1470,4 +1468,4 @@ async def run_for_profile_with_semaphore_and_progress(playwright, profile, headl
 
 
 if __name__ == "__main__":
-    asyncio.run(main(headless=False, bright_data=True, max_concurrent=10))
+    asyncio.run(main(headless=False, bright_data=True, max_concurrent=20))
