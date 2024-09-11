@@ -15,8 +15,8 @@ from playwright.async_api import async_playwright, Playwright, expect, TimeoutEr
 
 # Les paramètres pour la lecture des profils dans le fichier de données
 CSV_FILE = "C:/Users/User/Documents/GitHub/Projet-webscraping-automobile/data/df_profils_v1.csv"
-START_LINE = 201
-END_LINE = 1000
+START_LINE = 5500
+END_LINE = 6000
 
 
 TIMEOUT = 2 * 60000
@@ -101,13 +101,26 @@ def read_csv_profiles() -> List[Dict[str, str]]:
                 profiles = []
                 for row in list(reader)[START_LINE - 1:END_LINE]:
                     row['CarSelectMode'] = '2'
-                    row['FreqCarUse'] = '1'
+                    row['FreqCarUse'] = random.choice(['1', '2', '3'])
+                    row['CurrentGuaranteeCode'] = random.choice(['A', 'E'])
                     row['ContractAnniverMth'] = row['ContractAnniverMth'].zfill(2)
                     row['Phone'] = row['Phone'].zfill(10)
                     row['JobParkZipCode'] = row['JobParkZipCode'].zfill(5)
                     row['JobParkInseeCode'] = row['JobParkInseeCode'].zfill(5)
                     row['HomeParkZipCode'] = row['HomeParkZipCode'].zfill(5)
                     row['HomeParkInseeCode'] = row['HomeParkInseeCode'].zfill(5)
+                    # Convertir les valeurs en entiers pour la comparaison
+                    try:
+                        calculated_age_int = int(row.get('CalculatedAge', '0'))
+                        age_21_int = int(row.get('25', '0'))
+
+                        if calculated_age_int < age_21_int:
+                            # La condition est vraie, effectuez les actions nécessaires
+                            pass
+
+                    except ValueError:
+                        logger.warning(
+                            f"Invalid integer value for comparison: CalculatedAge ({row.get('CalculatedAge', '')}), 21 column ({row.get('21', '')})")
                     current_datetime = datetime.now()
                     row['DateScraping'] = current_datetime.strftime("%d/%m/%Y")
                     processed_row = process_marital_status_and_spouse_info(row)
@@ -621,7 +634,7 @@ async def fill_form_vehicule(page, profile):
             """ Marque de la voiture """
             try:
                 await page.wait_for_selector("#SpecCarMakeName", state="visible", timeout=TIMEOUT)
-                await page.select_option("#SpecCarMakeName", label=profile['SpecCarMakeName'])
+                await page.select_option("#SpecCarMakeName", label=profile['SpecCarMakeName'], timeout=60000)
                 print(f"----> Marque de la voiture '{profile['SpecCarMakeName']}' sélectionné avec succès.")
             except PlaywrightTimeoutError:
                 print("Le bouton '.SpecCarMakeName' n'est pas visible.")
@@ -635,7 +648,7 @@ async def fill_form_vehicule(page, profile):
                 await page.wait_for_selector("#SpecCarType", state="visible", timeout=2 * 60000)
                 element_SpecCarType = await page.query_selector("#SpecCarType")
                 await element_SpecCarType.wait_for_element_state("enabled", timeout=6000)
-                await page.select_option("#SpecCarType", label=profile['SpecCarType'], timeout=6000)
+                await page.select_option("#SpecCarType", label=profile['SpecCarType'], timeout=60000)
                 print(f"----> Modéle de la voiture '{profile['SpecCarType']}' sélectionné avec succès.")
             except PlaywrightTimeoutError:
                 print("Le bouton '.SpecCarType' n'est pas visible.")
@@ -649,7 +662,7 @@ async def fill_form_vehicule(page, profile):
                 await page.wait_for_selector("#SpecCarFuelType", state="visible", timeout=TIMEOUT)
                 element_SpecCarFuelType = await page.query_selector("#SpecCarFuelType")
                 await element_SpecCarFuelType.wait_for_element_state("enabled", timeout=60000)
-                await page.select_option("#SpecCarFuelType", value=profile['SpecCarFuelType'], timeout=6000)
+                await page.select_option("#SpecCarFuelType", value=profile['SpecCarFuelType'], timeout=60000)
                 print(f"----> Alimentation de la voiture '{profile['SpecCarFuelType']}' sélectionné avec succès.")
             except PlaywrightTimeoutError:
                 print("Le bouton '.SpecCarFuelType' n'est pas visible.")
@@ -1293,7 +1306,7 @@ async def recup_tarifs(page, profile):
             })
         if profile_details:
             date_du_jour = datetime.now().strftime("%d_%m_%y")
-            nom_fichier_json = f"offres_assureurs_auto_v2_{date_du_jour}.json"
+            nom_fichier_json = f"offres_{date_du_jour}_{START_LINE}_au_{END_LINE}.json"
             # Écrire les offres dans le fichier JSON
             async with aiofiles.open(nom_fichier_json, mode='a') as f:
                 await f.write(json.dumps(profile_details))
@@ -1303,7 +1316,7 @@ async def recup_tarifs(page, profile):
         else:
 
             date_du_jour = datetime.now().strftime("%d_%m_%y")
-            nom_fichier_sans_tarif = f"fichiers_profils_sans_{date_du_jour}.json"
+            nom_fichier_sans_tarif = f"fichiers_ST_{date_du_jour}_{START_LINE}_au_{END_LINE}.json"
             # Écrire les informations du profil dans le fichier JSON des échecs
             async with aiofiles.open(nom_fichier_sans_tarif, mode='a') as f:
                 await f.write(json.dumps({'ID': profile['Id']}))
@@ -1416,7 +1429,7 @@ async def run_for_profile(playwright: Playwright, profile: dict, headless: bool,
         date_du_jour = datetime.now().strftime("%d_%m_%y")
 
         # Créer le nom du fichier avec la date du jour
-        nom_fichier_echecs = f"fichiers_profils_echecs_{date_du_jour}.json"
+        nom_fichier_echecs = f"fichiers_echecs_{date_du_jour}_{START_LINE}_au_{END_LINE}.json"
         # Écrire les informations du profil dans le fichier JSON des échecs
         async with aiofiles.open(nom_fichier_echecs, mode='a') as f:
             await f.write(json.dumps({'ID': profile['Id']}))
