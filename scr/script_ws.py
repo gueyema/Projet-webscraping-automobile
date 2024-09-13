@@ -6,6 +6,7 @@ import datetime
 
 import random
 from datetime import datetime, timedelta
+from dateutil.relativedelta import relativedelta
 from typing import List, Dict
 from tqdm import tqdm
 import aiofiles
@@ -15,8 +16,8 @@ from playwright.async_api import async_playwright, Playwright, expect, TimeoutEr
 
 # Les paramètres pour la lecture des profils dans le fichier de données
 CSV_FILE = "C:/Users/User/Documents/GitHub/Projet-webscraping-automobile/data/df_profils_v1.csv"
-START_LINE = 5500
-END_LINE = 6000
+start_line = 8251
+end_line = 8500
 
 
 TIMEOUT = 2 * 60000
@@ -91,6 +92,21 @@ def process_marital_status_and_spouse_info(row: Dict[str, str]) -> Dict[str, str
 
     return row
 
+def calculate_age_permis(birth_date: str, license_date: str):
+    try:
+        birth = datetime.strptime(birth_date, "%d/%m/%Y")
+
+        license = datetime.strptime(f"01/{license_date}", "%d/%m/%Y")
+
+        difference = license.year - birth.year
+
+        if license.month < birth.month:
+            difference -= 1
+        return max(0, difference)
+    except ValueError as e:
+        logger.warning(f"Date invalide")
+        return 0
+
 def read_csv_profiles() -> List[Dict[str, str]]:
     encodings = ['ISO-8859-1', 'cp1252', 'latin1']
 
@@ -99,7 +115,7 @@ def read_csv_profiles() -> List[Dict[str, str]]:
             with open(CSV_FILE, newline='', encoding=encoding) as csvfile:
                 reader = csv.DictReader(csvfile, delimiter=',')
                 profiles = []
-                for row in list(reader)[START_LINE - 1:END_LINE]:
+                for row in list(reader)[start_line - 1:end_line]:
                     row['CarSelectMode'] = '2'
                     row['FreqCarUse'] = random.choice(['1', '2', '3'])
                     row['CurrentGuaranteeCode'] = random.choice(['A', 'E'])
@@ -109,6 +125,17 @@ def read_csv_profiles() -> List[Dict[str, str]]:
                     row['JobParkInseeCode'] = row['JobParkInseeCode'].zfill(5)
                     row['HomeParkZipCode'] = row['HomeParkZipCode'].zfill(5)
                     row['HomeParkInseeCode'] = row['HomeParkInseeCode'].zfill(5)
+                    current_date = datetime.now()
+                    row['PurchaseDate'] = current_date.strftime('%m/%Y')
+
+                    birth_date = row.get('PrimaryApplicantBirthDate')
+                    license_date = row.get('PrimaryApplicantDrivLicenseDate')
+                    age_permis = calculate_age_permis(birth_date, license_date)
+                    row['Age_permis'] = str(age_permis)
+
+                    if age_permis > 18:
+                        continue
+
                     # Convertir les valeurs en entiers pour la comparaison
                     try:
                         calculated_age_int = int(row.get('CalculatedAge', '0'))
@@ -1306,7 +1333,7 @@ async def recup_tarifs(page, profile):
             })
         if profile_details:
             date_du_jour = datetime.now().strftime("%d_%m_%y")
-            nom_fichier_json = f"offres_{date_du_jour}_{START_LINE}_au_{END_LINE}.json"
+            nom_fichier_json = f"offres_{date_du_jour}_{start_line}_au_{end_line}.json"
             # Écrire les offres dans le fichier JSON
             async with aiofiles.open(nom_fichier_json, mode='a') as f:
                 await f.write(json.dumps(profile_details))
@@ -1316,12 +1343,17 @@ async def recup_tarifs(page, profile):
         else:
 
             date_du_jour = datetime.now().strftime("%d_%m_%y")
-            nom_fichier_sans_tarif = f"fichiers_ST_{date_du_jour}_{START_LINE}_au_{END_LINE}.json"
+            nom_fichier_sans_tarif = f"fichiers_ST_{date_du_jour}_{start_line}_au_{end_line}.json"
             # Écrire les informations du profil dans le fichier JSON des échecs
             async with aiofiles.open(nom_fichier_sans_tarif, mode='a') as f:
                 await f.write(json.dumps({'ID': profile['Id']}))
                 await f.write('\n')
-                print(f"=====> Le profil {profile['Id']} a été stocké dans le fichier des échecs:", nom_fichier_sans_tarif)
+                print(f"=====> Le profil {profile['Id']} a été stocké dans le fichier des échecs:",
+                      nom_fichier_sans_tarif)
+
+
+
+
 
     except PlaywrightTimeoutError:
         print("Le div '.al_form' n'est pas visible, passage au champ suivant.")
@@ -1429,7 +1461,7 @@ async def run_for_profile(playwright: Playwright, profile: dict, headless: bool,
         date_du_jour = datetime.now().strftime("%d_%m_%y")
 
         # Créer le nom du fichier avec la date du jour
-        nom_fichier_echecs = f"fichiers_echecs_{date_du_jour}_{START_LINE}_au_{END_LINE}.json"
+        nom_fichier_echecs = f"fichiers_echecs_{date_du_jour}_{start_line}_au_{end_line}.json"
         # Écrire les informations du profil dans le fichier JSON des échecs
         async with aiofiles.open(nom_fichier_echecs, mode='a') as f:
             await f.write(json.dumps({'ID': profile['Id']}))
